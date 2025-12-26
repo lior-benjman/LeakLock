@@ -1,0 +1,9 @@
+path: subset_200
+train: train/images
+val: valid/images
+names:
+- card
+- document
+- face
+- license-plates
+nc: 4

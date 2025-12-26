@@ -3,6 +3,4 @@ id-card-segmentation-2/
 datasets/
 data/
 runs/
-runs_sensitive/
-*.pt
-*.onnx
+

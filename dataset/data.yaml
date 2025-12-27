@@ -1,0 +1,15 @@
+names:
+- card
+- document
+- face
+- license-plates
+nc: 4
+roboflow:
+  license: CC BY 4.0
+  project: id-card-segmentation-hk0gw
+  url: https://universe.roboflow.com/leaklock/id-card-segmentation-hk0gw/dataset/2
+  version: 2
+  workspace: leaklock
+test: ../test/images
+train: ../train/images
+val: ../valid/images

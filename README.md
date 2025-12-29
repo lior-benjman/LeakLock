@@ -2,6 +2,7 @@
 LeakLock
 
 Download dataset from Roboflow using the API key snippet ! ! ! ! ! ! ! !
+
 We added -
 * 600 QR / barcode images, 500 license plate images, 400 ID card images, 300 credit card images, 200 passport images.
 * Total: ~2,000 images (YOLO-annotated).

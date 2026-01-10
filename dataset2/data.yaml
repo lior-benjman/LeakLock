@@ -12,5 +12,5 @@ roboflow:
   version: 4
   workspace: leaklock
 test: ../test/images
-train: id-card-segmentation-4/train/images
-val: id-card-segmentation-4/valid/images
+train: ../train/images
+val: ../valid/images

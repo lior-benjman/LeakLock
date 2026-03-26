@@ -1,0 +1,70 @@
+from __future__ import annotations
+
+from dataclasses import dataclass, field
+from pathlib import Path
+
+
+@dataclass(slots=True)
+class AgeRiskBand:
+    min_age: int
+    max_age: int
+    risk_percent: int
+    reason_template: str
+
+
+@dataclass(slots=True)
+class PipelineConfig:
+    repo_root: Path = field(default_factory=lambda: Path(__file__).resolve().parent.parent)
+    yolo_weights_path: Path = field(
+        default_factory=lambda: Path(__file__).resolve().parent.parent
+        / "runs_sensitive"
+        / "yolov82"
+        / "weights"
+        / "best.pt"
+    )
+    detection_confidence_threshold: float = 0.25
+    deepface_detector_backend: str = "opencv"
+    license_plate_risk_percent: int = 75
+    license_plate_reason: str = "License-plate was detected"
+    age_risk_bands: tuple[AgeRiskBand, ...] = (
+        AgeRiskBand(
+            min_age=0,
+            max_age=11,
+            risk_percent=60,
+            reason_template="Face estimated at 11 years old or younger was detected",
+        ),
+        AgeRiskBand(
+            min_age=12,
+            max_age=15,
+            risk_percent=30,
+            reason_template="12-15 years old face detected",
+        ),
+        AgeRiskBand(
+            min_age=16,
+            max_age=200,
+            risk_percent=0,
+            reason_template="Face estimated at 16 years old or older was detected",
+        ),
+    )
+    supported_document_classes: frozenset[str] = frozenset({"card", "document", "id"})
+    supported_face_classes: frozenset[str] = frozenset({"face"})
+    supported_license_plate_classes: frozenset[str] = frozenset({"license-plates", "license_plate"})
+    ocr_high_risk_patterns: tuple[str, ...] = (
+        "passport",
+        "identity",
+        "identification",
+        "credit card",
+        "card number",
+        "personal number",
+        "date of birth",
+        "dob",
+        "address",
+        "passport no",
+        "id number",
+        "license no",
+        "document no",
+    )
+    ocr_high_risk_keywords_weight: int = 25
+    ocr_digit_sequence_weight: int = 10
+    ocr_name_weight: int = 15
+    max_ocr_risk_percent: int = 90

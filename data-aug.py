@@ -16,7 +16,7 @@ def parse_args():
     )
     parser.add_argument(
         "--class-name",
-        default="license-plates",
+        default="card",
         help="Class name to extract from data.yaml.",
     )
     parser.add_argument(
@@ -28,7 +28,7 @@ def parse_args():
     parser.add_argument(
         "--num-images",
         type=int,
-        default=11000,
+        default=7000,
         help="How many synthetic images to generate.",
     )
     parser.add_argument(
@@ -38,7 +38,7 @@ def parse_args():
     )
     parser.add_argument( # needs to be named after the class name
         "--output-dir",
-        default=os.path.join(repo_root, "synthetic_license-plates_output"),
+        default=os.path.join(repo_root, "synthetic_card_output_v2"),
         help="Final synthetic dataset output directory.",
     )
     parser.add_argument(

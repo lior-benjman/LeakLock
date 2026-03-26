@@ -1,0 +1,9 @@
+ultralytics
+opencv-python
+Pillow
+pytesseract
+torch
+transformers
+ipywidgets
+deepface
+tf-keras

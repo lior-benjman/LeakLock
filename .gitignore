@@ -4,3 +4,8 @@ datasets/
 data/
 runs/
 *.pth
+ofek_data_aug/
+synthetic_card_output/
+synthetic_license-plates_output/
+synthetic_face_output/
+synthetic_document_output/

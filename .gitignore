@@ -6,6 +6,9 @@ runs/
 *.pth
 ofek_data_aug/
 synthetic_card_output/
+synthetic_card_output_v2/
 synthetic_license-plates_output/
 synthetic_face_output/
 synthetic_document_output/
+build_combined_dataset.ps1
+build_combined_dataset.py

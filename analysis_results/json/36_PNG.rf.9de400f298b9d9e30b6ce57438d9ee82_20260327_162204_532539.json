@@ -1,0 +1,72 @@
+{
+  "image_path": "C:\\Users\\User\\Documents\\GitHub\\LeakLock\\uploaded_images\\36_PNG.rf.9de400f298b9d9e30b6ce57438d9ee82.jpg",
+  "overall_risk_percent": 20,
+  "analyses": [
+    {
+      "detection": {
+        "class_id": 0,
+        "class_name": "card",
+        "confidence": 0.8674241900444031,
+        "box": {
+          "x1": 1.77398681640625,
+          "y1": 143.4608154296875,
+          "x2": 634.1851806640625,
+          "y2": 519.4180908203125
+        }
+      },
+      "route": "ocr_extraction_layer",
+      "risk": {
+        "layer_name": "ocr_risk_evaluation_layer",
+        "routed_from_class": "card",
+        "risk_percent": 20,
+        "reason": "Card text contains sensitive indicators: long_digit_sequence",
+        "evidence": {
+          "ocr": {
+            "text": "E2\nEXCE/IN, VANGATN\nEX/CN 7999 GR\n***\nCAM10081080319",
+            "provider": "trocr",
+            "details": "OCR extracted from cropped detection using model=microsoft/trocr-base-printed"
+          },
+          "classification": {
+            "risk_percent": 20,
+            "matched_features": [
+              "long_digit_sequence"
+            ],
+            "model": "rule_based_sensitive_text_classifier"
+          },
+          "digit_sequences": [
+            "7999",
+            "10081080319"
+          ]
+        }
+      }
+    },
+    {
+      "detection": {
+        "class_id": 2,
+        "class_name": "face",
+        "confidence": 0.7303335070610046,
+        "box": {
+          "x1": 429.8475341796875,
+          "y1": 220.25587463378906,
+          "x2": 575.712890625,
+          "y2": 388.1624755859375
+        }
+      },
+      "route": "face_age_layer",
+      "risk": {
+        "layer_name": "face_age_layer",
+        "routed_from_class": "face",
+        "risk_percent": 0,
+        "reason": "Face estimated at 16 years old or older was detected",
+        "evidence": {
+          "age_estimate": {
+            "age_years": 33,
+            "confidence": 0.9886938333511353,
+            "provider": "huggingface_onnx_age_gender",
+            "details": "repo_id=onnx-community/age-gender-prediction-ONNX; model=model.onnx; gender=Female"
+          }
+        }
+      }
+    }
+  ]
+}

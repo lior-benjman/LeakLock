@@ -2,8 +2,12 @@ ultralytics
 opencv-python
 Pillow
 pytesseract
+easyocr
+rapidocr
 torch
 transformers
+huggingface_hub
+onnxruntime
 ipywidgets
 deepface
 tf-keras

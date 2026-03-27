@@ -1,0 +1,39 @@
+{
+  "image_path": "C:\\Users\\User\\Documents\\GitHub\\LeakLock\\uploaded_images\\synthetic_card__00601.jpg",
+  "overall_risk_percent": 0,
+  "analyses": [
+    {
+      "detection": {
+        "class_id": 1,
+        "class_name": "document",
+        "confidence": 0.6488180160522461,
+        "box": {
+          "x1": 161.5602569580078,
+          "y1": 702.8818969726562,
+          "x2": 466.8650207519531,
+          "y2": 1099.511962890625
+        }
+      },
+      "route": "ocr_extraction_layer",
+      "risk": {
+        "layer_name": "ocr_risk_evaluation_layer",
+        "routed_from_class": "document",
+        "risk_percent": 0,
+        "reason": "Document text was extracted and reviewed for sensitive personal data",
+        "evidence": {
+          "ocr": {
+            "text": "DATE\nMAKE\nLOTLELLLE\nNEW\nMARK",
+            "provider": "trocr",
+            "details": "OCR extracted from cropped detection using model=microsoft/trocr-base-printed"
+          },
+          "classification": {
+            "risk_percent": 0,
+            "matched_features": [],
+            "model": "rule_based_sensitive_text_classifier"
+          },
+          "digit_sequences": []
+        }
+      }
+    }
+  ]
+}

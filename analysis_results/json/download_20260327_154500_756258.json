@@ -1,0 +1,29 @@
+{
+  "image_path": "C:\\Users\\User\\Documents\\GitHub\\LeakLock\\uploaded_images\\download.png",
+  "overall_risk_percent": 0,
+  "analyses": [
+    {
+      "detection": {
+        "class_id": 2,
+        "class_name": "face",
+        "confidence": 0.8587142825126648,
+        "box": {
+          "x1": 87.20519256591797,
+          "y1": 30.818340301513672,
+          "x2": 181.90306091308594,
+          "y2": 135.90969848632812
+        }
+      },
+      "route": "face_age_layer",
+      "risk": {
+        "layer_name": "face_age_layer",
+        "routed_from_class": "face",
+        "risk_percent": 0,
+        "reason": "Face detected, but age estimation could not run in the current environment",
+        "evidence": {
+          "error": "Could not import the ONNX age model helper from onnx-community/age-gender-prediction-ONNX: No module named 'model'"
+        }
+      }
+    }
+  ]
+}

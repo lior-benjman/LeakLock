@@ -4,7 +4,12 @@ from pathlib import Path
 
 from ..config import AgeRiskBand, PipelineConfig
 from ..models import Detection, RiskResult
-from ..services.age_estimators import AgeEstimator, DeepFaceAgeEstimator, UnavailableAgeEstimator
+from ..services.age_estimators import (
+    AgeEstimator,
+    DeepFaceAgeEstimator,
+    HuggingFaceOnnxAgeEstimator,
+    UnavailableAgeEstimator,
+)
 
 
 class FaceAgeRiskLayer:
@@ -19,9 +24,17 @@ class FaceAgeRiskLayer:
         self._estimator = estimator or self._default_estimator()
 
     def _default_estimator(self) -> AgeEstimator:
-        return DeepFaceAgeEstimator(
-            detector_backend=self._config.deepface_detector_backend,
-        )
+        try:
+            return HuggingFaceOnnxAgeEstimator(
+                repo_id=self._config.hf_age_model_repo_id,
+            )
+        except RuntimeError:
+            try:
+                return DeepFaceAgeEstimator(
+                    detector_backend=self._config.deepface_detector_backend,
+                )
+            except RuntimeError:
+                return UnavailableAgeEstimator()
 
     def evaluate(self, image_path: Path, detection: Detection) -> RiskResult:
         try:

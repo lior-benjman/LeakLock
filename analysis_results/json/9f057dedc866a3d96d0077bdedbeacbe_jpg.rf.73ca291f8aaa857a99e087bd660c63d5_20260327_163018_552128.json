@@ -1,0 +1,39 @@
+{
+  "image_path": "C:\\Users\\User\\Documents\\GitHub\\LeakLock\\uploaded_images\\9f057dedc866a3d96d0077bdedbeacbe_jpg.rf.73ca291f8aaa857a99e087bd660c63d5.jpg",
+  "overall_risk_percent": 0,
+  "analyses": [
+    {
+      "detection": {
+        "class_id": 0,
+        "class_name": "card",
+        "confidence": 0.9198408126831055,
+        "box": {
+          "x1": 404.51458740234375,
+          "y1": 308.72003173828125,
+          "x2": 553.1708374023438,
+          "y2": 400.38519287109375
+        }
+      },
+      "route": "ocr_extraction_layer",
+      "risk": {
+        "layer_name": "ocr_risk_evaluation_layer",
+        "routed_from_class": "card",
+        "risk_percent": 0,
+        "reason": "Card text was extracted and reviewed for sensitive personal data",
+        "evidence": {
+          "ocr": {
+            "text": "0.3",
+            "provider": "trocr",
+            "details": "OCR extracted from cropped detection using model=microsoft/trocr-base-printed"
+          },
+          "classification": {
+            "risk_percent": 0,
+            "matched_features": [],
+            "model": "rule_based_sensitive_text_classifier"
+          },
+          "digit_sequences": []
+        }
+      }
+    }
+  ]
+}

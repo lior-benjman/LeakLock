@@ -1,0 +1,39 @@
+{
+  "image_path": "C:\\Users\\User\\Documents\\GitHub\\LeakLock\\uploaded_images\\3f2d80a8aa1062043fcf8d2d4c3079f4_jpg.rf.10334009e402b5e74e462fa46fb8e9b4.jpg",
+  "overall_risk_percent": 0,
+  "analyses": [
+    {
+      "detection": {
+        "class_id": 0,
+        "class_name": "card",
+        "confidence": 0.9706717133522034,
+        "box": {
+          "x1": 143.99441528320312,
+          "y1": 219.52700805664062,
+          "x2": 499.9963073730469,
+          "y2": 448.0719909667969
+        }
+      },
+      "route": "ocr_extraction_layer",
+      "risk": {
+        "layer_name": "ocr_risk_evaluation_layer",
+        "routed_from_class": "card",
+        "risk_percent": 0,
+        "reason": "Card was detected, but no OCR text was extracted, so the text-sensitive risk stayed low",
+        "evidence": {
+          "ocr": {
+            "text": "",
+            "provider": "unavailable",
+            "details": "OCR provider is not configured yet"
+          },
+          "classification": {
+            "risk_percent": 0,
+            "matched_features": [],
+            "model": "rule_based_sensitive_text_classifier"
+          },
+          "digit_sequences": []
+        }
+      }
+    }
+  ]
+}

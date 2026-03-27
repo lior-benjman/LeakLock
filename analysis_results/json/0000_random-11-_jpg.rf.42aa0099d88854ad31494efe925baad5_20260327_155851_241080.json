@@ -1,0 +1,72 @@
+{
+  "image_path": "C:\\Users\\User\\Documents\\GitHub\\LeakLock\\uploaded_images\\0000_random-11-_jpg.rf.42aa0099d88854ad31494efe925baad5.jpg",
+  "overall_risk_percent": 0,
+  "analyses": [
+    {
+      "detection": {
+        "class_id": 1,
+        "class_name": "document",
+        "confidence": 0.7275162935256958,
+        "box": {
+          "x1": 112.19999694824219,
+          "y1": 132.0228271484375,
+          "x2": 571.7023315429688,
+          "y2": 546.5902099609375
+        }
+      },
+      "route": "ocr_extraction_layer",
+      "risk": {
+        "layer_name": "ocr_risk_evaluation_layer",
+        "routed_from_class": "document",
+        "risk_percent": 0,
+        "reason": "Document was detected, but no OCR text was extracted, so the text-sensitive risk stayed low",
+        "evidence": {
+          "ocr": {
+            "text": "",
+            "provider": "unavailable",
+            "details": "OCR provider is not configured yet"
+          },
+          "classification": {
+            "risk_percent": 0,
+            "matched_features": [],
+            "model": "rule_based_sensitive_text_classifier"
+          },
+          "digit_sequences": []
+        }
+      }
+    },
+    {
+      "detection": {
+        "class_id": 1,
+        "class_name": "document",
+        "confidence": 0.3040943145751953,
+        "box": {
+          "x1": 0.0,
+          "y1": 135.12879943847656,
+          "x2": 13.698490142822266,
+          "y2": 216.89060974121094
+        }
+      },
+      "route": "ocr_extraction_layer",
+      "risk": {
+        "layer_name": "ocr_risk_evaluation_layer",
+        "routed_from_class": "document",
+        "risk_percent": 0,
+        "reason": "Document was detected, but no OCR text was extracted, so the text-sensitive risk stayed low",
+        "evidence": {
+          "ocr": {
+            "text": "",
+            "provider": "unavailable",
+            "details": "OCR provider is not configured yet"
+          },
+          "classification": {
+            "risk_percent": 0,
+            "matched_features": [],
+            "model": "rule_based_sensitive_text_classifier"
+          },
+          "digit_sequences": []
+        }
+      }
+    }
+  ]
+}

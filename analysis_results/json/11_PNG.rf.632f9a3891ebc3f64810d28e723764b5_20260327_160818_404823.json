@@ -1,0 +1,67 @@
+{
+  "image_path": "C:\\Users\\User\\Documents\\GitHub\\LeakLock\\uploaded_images\\11_PNG.rf.632f9a3891ebc3f64810d28e723764b5.jpg",
+  "overall_risk_percent": 0,
+  "analyses": [
+    {
+      "detection": {
+        "class_id": 0,
+        "class_name": "card",
+        "confidence": 0.7615677714347839,
+        "box": {
+          "x1": 1.33270263671875,
+          "y1": 116.8681640625,
+          "x2": 638.7637329101562,
+          "y2": 516.62255859375
+        }
+      },
+      "route": "ocr_extraction_layer",
+      "risk": {
+        "layer_name": "ocr_risk_evaluation_layer",
+        "routed_from_class": "card",
+        "risk_percent": 0,
+        "reason": "Card was detected, but no OCR text was extracted, so the text-sensitive risk stayed low",
+        "evidence": {
+          "ocr": {
+            "text": "",
+            "provider": "unavailable",
+            "details": "EasyOCR unavailable: easyocr is required for EasyOCR extraction. | Tesseract unavailable: tesseract is not installed or it's not in your PATH."
+          },
+          "classification": {
+            "risk_percent": 0,
+            "matched_features": [],
+            "model": "rule_based_sensitive_text_classifier"
+          },
+          "digit_sequences": []
+        }
+      }
+    },
+    {
+      "detection": {
+        "class_id": 2,
+        "class_name": "face",
+        "confidence": 0.6286895871162415,
+        "box": {
+          "x1": 71.2779769897461,
+          "y1": 194.97003173828125,
+          "x2": 195.37515258789062,
+          "y2": 348.37078857421875
+        }
+      },
+      "route": "face_age_layer",
+      "risk": {
+        "layer_name": "face_age_layer",
+        "routed_from_class": "face",
+        "risk_percent": 0,
+        "reason": "Face estimated at 16 years old or older was detected",
+        "evidence": {
+          "age_estimate": {
+            "age_years": 23,
+            "confidence": 0.9876335859298706,
+            "provider": "huggingface_onnx_age_gender",
+            "details": "repo_id=onnx-community/age-gender-prediction-ONNX; model=model.onnx; gender=Female"
+          }
+        }
+      }
+    }
+  ]
+}

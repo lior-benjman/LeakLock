@@ -23,6 +23,7 @@ class PipelineConfig:
         / "best.pt"
     )
     detection_confidence_threshold: float = 0.25
+    hf_age_model_repo_id: str = "onnx-community/age-gender-prediction-ONNX"
     deepface_detector_backend: str = "opencv"
     license_plate_risk_percent: int = 75
     license_plate_reason: str = "License-plate was detected"

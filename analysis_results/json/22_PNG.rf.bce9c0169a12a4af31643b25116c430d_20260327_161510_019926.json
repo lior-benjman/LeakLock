@@ -1,0 +1,39 @@
+{
+  "image_path": "C:\\Users\\User\\Documents\\GitHub\\LeakLock\\uploaded_images\\22_PNG.rf.bce9c0169a12a4af31643b25116c430d.jpg",
+  "overall_risk_percent": 0,
+  "analyses": [
+    {
+      "detection": {
+        "class_id": 0,
+        "class_name": "card",
+        "confidence": 0.9105062484741211,
+        "box": {
+          "x1": 0.437744140625,
+          "y1": 71.35343933105469,
+          "x2": 626.5040283203125,
+          "y2": 558.7001342773438
+        }
+      },
+      "route": "ocr_extraction_layer",
+      "risk": {
+        "layer_name": "ocr_risk_evaluation_layer",
+        "routed_from_class": "card",
+        "risk_percent": 0,
+        "reason": "Card was detected, but no OCR text was extracted, so the text-sensitive risk stayed low",
+        "evidence": {
+          "ocr": {
+            "text": "",
+            "provider": "unavailable",
+            "details": "RapidOCR unavailable: rapidocr is required for RapidOCR extraction. | EasyOCR unavailable: easyocr is required for EasyOCR extraction. | Tesseract unavailable: tesseract is not installed or it's not in your PATH."
+          },
+          "classification": {
+            "risk_percent": 0,
+            "matched_features": [],
+            "model": "rule_based_sensitive_text_classifier"
+          },
+          "digit_sequences": []
+        }
+      }
+    }
+  ]
+}

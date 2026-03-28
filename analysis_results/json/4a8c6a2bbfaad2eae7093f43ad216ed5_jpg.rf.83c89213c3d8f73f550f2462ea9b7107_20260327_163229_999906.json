@@ -1,0 +1,39 @@
+{
+  "image_path": "C:\\Users\\User\\Documents\\GitHub\\LeakLock\\uploaded_images\\4a8c6a2bbfaad2eae7093f43ad216ed5_jpg.rf.83c89213c3d8f73f550f2462ea9b7107.jpg",
+  "overall_risk_percent": 0,
+  "analyses": [
+    {
+      "detection": {
+        "class_id": 1,
+        "class_name": "document",
+        "confidence": 0.8603008985519409,
+        "box": {
+          "x1": 40.16310119628906,
+          "y1": 65.24734497070312,
+          "x2": 540.08984375,
+          "y2": 511.6423645019531
+        }
+      },
+      "route": "ocr_extraction_layer",
+      "risk": {
+        "layer_name": "ocr_risk_evaluation_layer",
+        "routed_from_class": "document",
+        "risk_percent": 0,
+        "reason": "Document text was extracted and reviewed for sensitive personal data",
+        "evidence": {
+          "ocr": {
+            "text": "CASHIER\nCASH\nTAX",
+            "provider": "trocr",
+            "details": "OCR extracted from cropped detection using model=microsoft/trocr-base-printed"
+          },
+          "classification": {
+            "risk_percent": 0,
+            "matched_features": [],
+            "model": "rule_based_sensitive_text_classifier"
+          },
+          "digit_sequences": []
+        }
+      }
+    }
+  ]
+}

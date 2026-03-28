@@ -1,0 +1,41 @@
+{
+  "image_path": "C:\\Users\\User\\Documents\\GitHub\\LeakLock\\uploaded_images\\34_jpg.rf.b50411ef6abe2989783b663e7809024a.jpg",
+  "overall_risk_percent": 20,
+  "analyses": [
+    {
+      "detection": {
+        "class_id": 0,
+        "class_name": "card",
+        "confidence": 0.8139145374298096,
+        "box": {
+          "x1": 148.79122924804688,
+          "y1": 213.1455535888672,
+          "x2": 485.6593933105469,
+          "y2": 419.68060302734375
+        }
+      },
+      "route": "ocr_extraction_layer",
+      "risk": {
+        "layer_name": "ocr_risk_evaluation_layer",
+        "routed_from_class": "card",
+        "risk_percent": 20,
+        "reason": "Card text contains sensitive indicators: email",
+        "evidence": {
+          "ocr": {
+            "text": "PAX\nIT RM\nIT @ ENTER:\nCASHIER",
+            "provider": "trocr",
+            "details": "OCR extracted from cropped detection using model=microsoft/trocr-base-printed"
+          },
+          "classification": {
+            "risk_percent": 20,
+            "matched_features": [
+              "email"
+            ],
+            "model": "rule_based_sensitive_text_classifier"
+          },
+          "digit_sequences": []
+        }
+      }
+    }
+  ]
+}

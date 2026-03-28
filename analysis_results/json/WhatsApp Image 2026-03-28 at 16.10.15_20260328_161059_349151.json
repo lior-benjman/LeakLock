@@ -1,0 +1,71 @@
+{
+  "image_path": "C:\\Users\\aviya\\OneDrive\\Desktop\\\u05e4\u05e8\u05d5\u05d9\u05e7\u05d8 \u05d2\u05de\u05e8\\LeakLock-1\\uploaded_images\\WhatsApp Image 2026-03-28 at 16.10.15.jpeg",
+  "overall_risk_percent": 14,
+  "analyses": [
+    {
+      "detection": {
+        "class_id": 0,
+        "class_name": "card",
+        "confidence": 0.9441643953323364,
+        "box": {
+          "x1": 286.19635009765625,
+          "y1": 251.77337646484375,
+          "x2": 991.0213623046875,
+          "y2": 1360.5877685546875
+        }
+      },
+      "route": "ocr_extraction_layer",
+      "risk": {
+        "layer_name": "ocr_risk_evaluation_layer",
+        "routed_from_class": "card",
+        "risk_percent": 14,
+        "reason": "Card text was extracted and reviewed for sensitive personal data",
+        "evidence": {
+          "ocr": {
+            "text": "ITEM\nITEMPT\n1.45",
+            "provider": "trocr",
+            "details": "OCR extracted from cropped detection using model=microsoft/trocr-base-printed"
+          },
+          "classification": {
+            "risk_percent": 14,
+            "matched_features": [],
+            "model": "rule_based_sensitive_text_classifier",
+            "rule_based_risk_percent": 0,
+            "ml_risk_percent": 35,
+            "blend_weights": {
+              "rule_based": 0.6,
+              "document_ml": 0.4
+            }
+          },
+          "document_ml_analysis": {
+            "document_type": "generic document",
+            "confidence": 0.7302035689353943,
+            "entities": [
+              {
+                "text": "1.45",
+                "label": "CARDINAL"
+              }
+            ],
+            "patterns": {
+              "emails": [],
+              "phones": [],
+              "dates": [],
+              "long_numbers": [],
+              "keyword_hits": {
+                "government_id_keywords": [],
+                "financial_keywords": [],
+                "medical_keywords": []
+              }
+            },
+            "risk": {
+              "risk_percent": 35,
+              "risk_score": 0.3460407137870789,
+              "risk_level": "low"
+            }
+          },
+          "digit_sequences": []
+        }
+      }
+    }
+  ]
+}

@@ -1,0 +1,8 @@
+[card]
+ITEM TOTAL:
+0.00
+PAINT
+
+[document]
+1,000
+0.00

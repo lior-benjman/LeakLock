@@ -1,8 +1,8 @@
 
-id-card-segmentation - v2 2025-12-24 6:29pm
+id-card-segmentation - v5 2026-03-27 11:16am
 ==============================
 
-This dataset was exported via roboflow.com on December 24, 2025 at 6:18 PM GMT
+This dataset was exported via roboflow.com on March 27, 2026 at 8:19 AM GMT
 
 Roboflow is an end-to-end computer vision platform that helps you
 * collaborate with your team on computer vision projects
@@ -17,7 +17,7 @@ visit https://github.com/roboflow/notebooks
 
 To find over 100k other datasets and pre-trained models, visit https://universe.roboflow.com
 
-The dataset includes 4682 images.
+The dataset includes 12641 images.
 Cards are annotated in YOLO v5 PyTorch format.
 
 The following pre-processing was applied to each image:

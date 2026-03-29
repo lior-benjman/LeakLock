@@ -11,3 +11,4 @@ onnxruntime
 ipywidgets
 deepface
 tf-keras
+spacy

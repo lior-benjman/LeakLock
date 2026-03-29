@@ -1,7 +1,8 @@
 # datasets
 id-card-segmentation-2/
 id-card-segmentation-5/
-datasets/
+id-card-segmentation-6/
+dataset/
 data/
 runs/
 *.pth
@@ -13,3 +14,4 @@ synthetic_face_output/
 synthetic_document_output/
 build_combined_dataset.ps1
 build_combined_dataset.py
+combined_training_dataset.zip

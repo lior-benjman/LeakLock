@@ -18,7 +18,7 @@ class PipelineConfig:
     yolo_weights_path: Path = field(
         default_factory=lambda: Path(__file__).resolve().parent.parent
         / "runs_sensitive"
-        / "yolov82"
+        / "yolov83"
         / "weights"
         / "best.pt"
     )

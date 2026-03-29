@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from pathlib import Path
 from typing import Protocol
 
@@ -26,10 +27,38 @@ class TrOcrProvider:
                 "transformers and torch are required for TrOCR extraction."
             ) from exc
 
+        def _load_from_pretrained(
+            processor_cls,
+            model_cls,
+            *,
+            local_files_only: bool,
+        ):
+            processor = processor_cls.from_pretrained(
+                model_name,
+                local_files_only=local_files_only,
+            )
+            model = model_cls.from_pretrained(
+                model_name,
+                local_files_only=local_files_only,
+            )
+            return processor, model
+
         try:
             self._torch = torch
-            self._processor = TrOCRProcessor.from_pretrained(model_name)
-            self._model = VisionEncoderDecoderModel.from_pretrained(model_name)
+            try:
+                # Prefer local cache first so OCR works in restricted/no-network runtimes.
+                self._processor, self._model = _load_from_pretrained(
+                    TrOCRProcessor,
+                    VisionEncoderDecoderModel,
+                    local_files_only=True,
+                )
+            except Exception:
+                # Fallback to default HF behavior when internet access is available.
+                self._processor, self._model = _load_from_pretrained(
+                    TrOCRProcessor,
+                    VisionEncoderDecoderModel,
+                    local_files_only=False,
+                )
             self._model.eval()
         except Exception as exc:  # pragma: no cover - depends on runtime
             raise RuntimeError(
@@ -39,7 +68,11 @@ class TrOcrProvider:
     def _predict_text(self, image: Image.Image) -> str:
         pixel_values = self._processor(images=image.convert("RGB"), return_tensors="pt").pixel_values
         with self._torch.no_grad():
-            generated_ids = self._model.generate(pixel_values)
+            generated_ids = self._model.generate(
+                pixel_values,
+                max_new_tokens=64,
+                num_beams=2,
+            )
         text = self._processor.batch_decode(generated_ids, skip_special_tokens=True)[0].strip()
         return text
 
@@ -49,6 +82,7 @@ class TrOcrProvider:
         if height < 120:
             return slices
 
+        # Coarse bands preserve broad context.
         bands = 4
         band_height = max(1, height // bands)
         overlap = max(8, band_height // 8)
@@ -59,6 +93,20 @@ class TrOcrProvider:
             if bottom - top < 24:
                 continue
             slices.append((f"band_{index + 1}", image.crop((0, top, width, bottom))))
+
+        # Fine-grained horizontal windows improve dense-document OCR with TrOCR.
+        fine_window = max(48, min(120, height // 10))
+        fine_step = max(24, fine_window // 2)
+        slice_index = 1
+        max_fine_slices = 8
+        for top in range(0, max(1, height - fine_window + 1), fine_step):
+            if slice_index > max_fine_slices:
+                break
+            bottom = min(height, top + fine_window)
+            if bottom - top < 24:
+                continue
+            slices.append((f"fine_{slice_index}", image.crop((0, top, width, bottom))))
+            slice_index += 1
 
         return slices
 
@@ -72,11 +120,21 @@ class TrOcrProvider:
                 details=f"TrOCR could not prepare image variants: {exc}",
             )
 
-        collected: list[str] = []
-        seen: set[str] = set()
+        best_text = ""
+        best_variant_name: str | None = None
+        best_score = 0
         last_error: str | None = None
 
-        for variant_name, variant_image in variants:
+        preferred_variants = {"original", "grayscale_autocontrast", "threshold_otsu"}
+        variants_for_trocr = [
+            (name, image) for name, image in variants if name in preferred_variants
+        ]
+        if not variants_for_trocr:
+            variants_for_trocr = variants
+
+        for variant_name, variant_image in variants_for_trocr:
+            collected: list[str] = []
+            seen: set[str] = set()
             for slice_name, candidate in self._line_slices(variant_image):
                 try:
                     text = self._predict_text(candidate)
@@ -93,14 +151,29 @@ class TrOcrProvider:
                 seen.add(normalized)
                 collected.append(normalized)
 
-            if collected:
+            if not collected:
+                continue
+
+            variant_text = "\n".join(collected)
+            variant_score = _extraction_quality_score(variant_text)
+            if variant_score > best_score:
+                best_score = variant_score
+                best_text = variant_text
+                best_variant_name = variant_name
+
+            # High-quality extraction reached; no need to try additional variants.
+            if best_score >= 220:
                 break
 
-        if collected:
+        if best_text:
             return OcrExtraction(
-                text="\n".join(collected),
+                text=best_text,
                 provider="trocr",
-                details=f"OCR extracted from cropped detection using model={self._model_name}",
+                details=(
+                    "OCR extracted from cropped detection using "
+                    f"model={self._model_name}, best_variant={best_variant_name}, "
+                    f"quality_score={best_score}"
+                ),
             )
 
         return OcrExtraction(
@@ -172,6 +245,20 @@ def _collect_text_lines(results: list[object]) -> str:
         if len(item) >= 2 and item[1]:
             text_parts.append(str(item[1]).strip())
     return "\n".join(part for part in text_parts if part)
+
+
+def _extraction_quality_score(text: str) -> int:
+    normalized = " ".join(text.split())
+    if not normalized:
+        return 0
+
+    alpha_chars = sum(character.isalpha() for character in normalized)
+    digit_chars = sum(character.isdigit() for character in normalized)
+    tokens = re.findall(r"[A-Za-z0-9]{2,}", normalized)
+    unique_token_count = len(set(tokens))
+    line_count = len([line for line in text.splitlines() if line.strip()])
+
+    return (alpha_chars * 2) + digit_chars + (unique_token_count * 8) + (line_count * 4)
 
 
 def _ocr_image_variants(image_path: Path) -> list[tuple[str, Image.Image]]:
@@ -302,12 +389,24 @@ class FallbackOcrProvider:
         self._providers = providers
 
     def extract_text(self, image_path: Path) -> OcrExtraction:
+        best_extraction: OcrExtraction | None = None
+        best_score = 0
         attempts: list[str] = []
+
         for provider in self._providers:
             extraction = provider.extract_text(image_path)
-            if extraction.text.strip():
-                return extraction
-            attempts.append(f"{extraction.provider}: {extraction.details}")
+            score = _extraction_quality_score(extraction.text)
+
+            if score > best_score:
+                best_score = score
+                best_extraction = extraction
+
+            attempts.append(
+                f"{extraction.provider}: score={score}; details={extraction.details}"
+            )
+
+        if best_extraction and best_score > 0:
+            return best_extraction
 
         return OcrExtraction(
             text="",

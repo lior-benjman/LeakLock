@@ -4,6 +4,9 @@ import subprocess
 import sys
 
 
+DEFAULT_PEXELS_API_KEY = "uGygwoVIwU0NsH3ZEoZJSvjvmTDjq5GEDTXTbA0kK64CidJh5k7XxYa2"
+
+
 def parse_args():
     repo_root = os.path.dirname(os.path.abspath(__file__))
     parser = argparse.ArgumentParser(
@@ -16,7 +19,7 @@ def parse_args():
     )
     parser.add_argument(
         "--class-name",
-        default="card",
+        default="id-card",
         help="Class name to extract from data.yaml.",
     )
     parser.add_argument(
@@ -28,7 +31,7 @@ def parse_args():
     parser.add_argument(
         "--num-images",
         type=int,
-        default=7000,
+        default=1000,
         help="How many synthetic images to generate.",
     )
     parser.add_argument(
@@ -38,7 +41,7 @@ def parse_args():
     )
     parser.add_argument( # needs to be named after the class name
         "--output-dir",
-        default=os.path.join(repo_root, "synthetic_card_output_v2"),
+        default=os.path.join(repo_root, "synthetic_id-card_output"),
         help="Final synthetic dataset output directory.",
     )
     parser.add_argument(
@@ -49,13 +52,13 @@ def parse_args():
     )
     parser.add_argument(
         "--pexels-api-key",
-        default=os.environ.get("PEXELS_API_KEY", ""),
-        help="Pexels API key. Defaults to PEXELS_API_KEY env var.",
+        default=os.environ.get("PEXELS_API_KEY", DEFAULT_PEXELS_API_KEY),
+        help="Pexels API key. Defaults to PEXELS_API_KEY env var or the built-in fallback key.",
     )
     parser.add_argument(
         "--pages",
         type=int,
-        default=8,
+        default=5,
         help="How many Pexels result pages to fetch per query.",
     )
     parser.add_argument(
@@ -120,7 +123,7 @@ def default_queries_for_class(class_name):
             "street background no people",
             "park background no people",
         ]
-    return ["neutral background", "indoor background", "outdoor background"]
+    return ["wallet on table"]
 
 
 def safe_name(value):
@@ -192,7 +195,7 @@ def main():
         run_command(extract_command)
 
     if not args.skip_download:
-        api_key = args.pexels_api_key or os.environ.get("PEXELS_API_KEY", "")
+        api_key = args.pexels_api_key or os.environ.get("PEXELS_API_KEY", DEFAULT_PEXELS_API_KEY)
         if not api_key:
             raise ValueError(
                 "Missing Pexels API key. Pass --pexels-api-key or set PEXELS_API_KEY."

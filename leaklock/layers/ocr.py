@@ -19,7 +19,7 @@ class OcrExtractionLayer:
     """Extracts OCR text for document-like detections."""
 
     def __init__(self, provider: OcrProvider | None = None) -> None:
-        self._provider = provider or self._default_provider()
+        self._provider = provider
 
     def _default_provider(self) -> OcrProvider:
         providers: list[OcrProvider] = []
@@ -50,6 +50,11 @@ class OcrExtractionLayer:
 
         return UnavailableOcrProvider(" | ".join(errors) if errors else "OCR provider is not configured yet")
 
+    def _get_provider(self) -> OcrProvider:
+        if self._provider is None:
+            self._provider = self._default_provider()
+        return self._provider
+
     def extract(self, image_path: Path, detection: Detection) -> OcrExtraction:
         with crop_detection_to_temp_file(image_path=image_path, detection=detection) as crop_path:
-            return self._provider.extract_text(crop_path)
+            return self._get_provider().extract_text(crop_path)

@@ -2,11 +2,7 @@ from __future__ import annotations
 
 import re
 from pathlib import Path
-from typing import Protocol
-
-import cv2
-import numpy as np
-from PIL import Image, ImageFilter, ImageOps
+from typing import Any, Protocol
 
 from ..models import OcrExtraction
 
@@ -22,10 +18,13 @@ class TrOcrProvider:
         try:
             import torch
             from transformers import TrOCRProcessor, VisionEncoderDecoderModel
+            from transformers.utils import logging as transformers_logging
         except ImportError as exc:  # pragma: no cover - depends on runtime
             raise RuntimeError(
                 "transformers and torch are required for TrOCR extraction."
             ) from exc
+
+        transformers_logging.set_verbosity_error()
 
         def _load_from_pretrained(
             processor_cls,
@@ -65,7 +64,7 @@ class TrOcrProvider:
                 f"TrOCR could not initialize from {model_name}: {exc}"
             ) from exc
 
-    def _predict_text(self, image: Image.Image) -> str:
+    def _predict_text(self, image: Any) -> str:
         pixel_values = self._processor(images=image.convert("RGB"), return_tensors="pt").pixel_values
         with self._torch.no_grad():
             generated_ids = self._model.generate(
@@ -76,9 +75,9 @@ class TrOcrProvider:
         text = self._processor.batch_decode(generated_ids, skip_special_tokens=True)[0].strip()
         return text
 
-    def _line_slices(self, image: Image.Image) -> list[tuple[str, Image.Image]]:
+    def _line_slices(self, image: Any) -> list[tuple[str, Any]]:
         width, height = image.size
-        slices: list[tuple[str, Image.Image]] = [("full", image)]
+        slices: list[tuple[str, Any]] = [("full", image)]
         if height < 120:
             return slices
 
@@ -233,10 +232,10 @@ class RapidOcrProvider:
         )
 
 
-def _pil_resampling_lanczos():
-    if hasattr(Image, "Resampling"):
-        return Image.Resampling.LANCZOS
-    return Image.LANCZOS
+def _pil_resampling_lanczos(image_module: Any):
+    if hasattr(image_module, "Resampling"):
+        return image_module.Resampling.LANCZOS
+    return image_module.LANCZOS
 
 
 def _collect_text_lines(results: list[object]) -> str:
@@ -261,9 +260,18 @@ def _extraction_quality_score(text: str) -> int:
     return (alpha_chars * 2) + digit_chars + (unique_token_count * 8) + (line_count * 4)
 
 
-def _ocr_image_variants(image_path: Path) -> list[tuple[str, Image.Image]]:
+def _ocr_image_variants(image_path: Path) -> list[tuple[str, Any]]:
+    try:
+        import cv2
+        import numpy as np
+        from PIL import Image, ImageFilter, ImageOps
+    except ImportError as exc:  # pragma: no cover - depends on runtime
+        raise RuntimeError(
+            "Pillow, opencv-python, and numpy are required to prepare OCR image variants."
+        ) from exc
+
     base = Image.open(image_path).convert("RGB")
-    resample = _pil_resampling_lanczos()
+    resample = _pil_resampling_lanczos(Image)
 
     enlarged = base.resize((max(1, base.width * 2), max(1, base.height * 2)), resample)
     gray = ImageOps.grayscale(enlarged)
@@ -305,9 +313,27 @@ class EasyOcrProvider:
             ) from exc
 
     def extract_text(self, image_path: Path) -> OcrExtraction:
+        try:
+            import numpy as np
+        except ImportError as exc:  # pragma: no cover - depends on runtime
+            return OcrExtraction(
+                text="",
+                provider="easyocr",
+                details=f"EasyOCR could not run because numpy is unavailable: {exc}",
+            )
+
         last_error: str | None = None
 
-        for variant_name, variant_image in _ocr_image_variants(image_path):
+        try:
+            variants = _ocr_image_variants(image_path)
+        except Exception as exc:  # pragma: no cover - depends on runtime
+            return OcrExtraction(
+                text="",
+                provider="easyocr",
+                details=f"EasyOCR could not prepare image variants: {exc}",
+            )
+
+        for variant_name, variant_image in variants:
             try:
                 results = self._reader.readtext(np.array(variant_image), detail=1, paragraph=False)
                 text = _collect_text_lines(results).strip()
@@ -355,7 +381,16 @@ class TesseractOcrProvider:
 
         last_error: str | None = None
 
-        for variant_name, variant_image in _ocr_image_variants(image_path):
+        try:
+            variants = _ocr_image_variants(image_path)
+        except Exception as exc:  # pragma: no cover - depends on runtime
+            return OcrExtraction(
+                text="",
+                provider="tesseract",
+                details=f"Tesseract could not prepare image variants: {exc}",
+            )
+
+        for variant_name, variant_image in variants:
             for psm in ("6", "11"):
                 try:
                     text = pytesseract.image_to_string(

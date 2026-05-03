@@ -2,11 +2,9 @@ from __future__ import annotations
 
 import json
 import os
+import re
 from pathlib import Path
-from typing import Protocol
-
-import numpy as np
-from PIL import Image
+from typing import Any, Protocol
 
 from ..models import AgeEstimate, Detection
 from .image_tools import crop_detection_to_temp_file
@@ -41,6 +39,67 @@ class FixedAgeEstimator:
             provider="fixed",
             details="Fixed age estimator for testing",
         )
+
+
+class FallbackAgeEstimator:
+    """Tries configured age estimators until one returns an age."""
+
+    def __init__(self, estimators: list[AgeEstimator]) -> None:
+        self._estimators = estimators
+
+    def estimate(self, image_path: Path, detection: Detection) -> AgeEstimate:
+        failures: list[str] = []
+        empty_estimates: list[AgeEstimate] = []
+
+        for estimator in self._estimators:
+            try:
+                estimate = estimator.estimate(image_path=image_path, detection=detection)
+            except Exception as exc:  # noqa: BLE001 - model runtimes raise mixed exception types.
+                failures.append(
+                    f"{estimator.__class__.__name__}: {exc.__class__.__name__}: {exc}"
+                )
+                continue
+
+            if estimate.age_years is not None:
+                return _with_fallback_details(estimate, failures)
+
+            empty_estimates.append(estimate)
+
+        if empty_estimates:
+            return _with_fallback_details(empty_estimates[-1], failures)
+
+        return AgeEstimate(
+            age_years=None,
+            confidence=None,
+            provider="unavailable",
+            details=_format_fallback_failures(failures)
+            or "No face-age model has been configured yet",
+        )
+
+
+def _format_fallback_failures(failures: list[str]) -> str:
+    if not failures:
+        return ""
+    return "Attempted age estimators failed: " + " | ".join(failures)
+
+
+def _with_fallback_details(estimate: AgeEstimate, failures: list[str]) -> AgeEstimate:
+    fallback_details = _format_fallback_failures(failures)
+    if not fallback_details:
+        return estimate
+
+    details = estimate.details
+    if details:
+        details = f"{details}; {fallback_details}"
+    else:
+        details = fallback_details
+
+    return AgeEstimate(
+        age_years=estimate.age_years,
+        confidence=estimate.confidence,
+        provider=estimate.provider,
+        details=details,
+    )
 
 
 class DeepFaceAgeEstimator:
@@ -111,6 +170,138 @@ class DeepFaceAgeEstimator:
             provider="deepface",
             details=f"detector_backend={self._detector_backend}",
         )
+
+
+class HuggingFaceTransformersAgeEstimator:
+    """Age estimator backed by a Transformers image-classification model."""
+
+    def __init__(self, model_id: str = "nateraw/vit-age-classifier") -> None:
+        self._model_id = model_id
+        self._pipeline = None
+
+    def _load_pipeline(self):
+        if self._pipeline is not None:
+            return self._pipeline
+
+        try:
+            from transformers import AutoImageProcessor, AutoModelForImageClassification, pipeline
+            from transformers.utils import logging as transformers_logging
+        except ImportError as exc:  # pragma: no cover - depends on runtime
+            raise RuntimeError(
+                "transformers is required for the Hugging Face age-classifier estimator."
+            ) from exc
+
+        transformers_logging.set_verbosity_error()
+
+        def _load_from_pretrained(*, local_files_only: bool):
+            image_processor = AutoImageProcessor.from_pretrained(
+                self._model_id,
+                local_files_only=local_files_only,
+                use_fast=True,
+            )
+            model = AutoModelForImageClassification.from_pretrained(
+                self._model_id,
+                local_files_only=local_files_only,
+            )
+            return image_processor, model
+
+        last_error: Exception | None = None
+        for local_files_only in (True, False):
+            try:
+                image_processor, model = _load_from_pretrained(
+                    local_files_only=local_files_only,
+                )
+                self._pipeline = pipeline(
+                    "image-classification",
+                    model=model,
+                    image_processor=image_processor,
+                    device=-1,
+                )
+                break
+            except Exception as exc:
+                last_error = exc
+
+        if self._pipeline is None:
+            raise RuntimeError(
+                f"Could not load Hugging Face age classifier {self._model_id}: {last_error}"
+            ) from last_error
+
+        return self._pipeline
+
+    def estimate(self, image_path: Path, detection: Detection) -> AgeEstimate:
+        classifier = self._load_pipeline()
+
+        with crop_detection_to_temp_file(image_path=image_path, detection=detection) as crop_path:
+            try:
+                result = classifier(str(crop_path))
+            except Exception as exc:  # pragma: no cover - depends on runtime
+                raise RuntimeError(
+                    f"Hugging Face age classification failed: {exc}"
+                ) from exc
+
+        if not result:
+            return AgeEstimate(
+                age_years=None,
+                confidence=None,
+                provider="huggingface_transformers_age_classifier",
+                details=f"No labels were returned by {self._model_id}",
+            )
+
+        best = result[0]
+        label = str(best.get("label", "")).strip()
+        score = best.get("score")
+        age_years = _age_from_classifier_label(label)
+
+        try:
+            confidence = float(score) if score is not None else None
+        except (TypeError, ValueError):
+            confidence = None
+
+        if age_years is None:
+            return AgeEstimate(
+                age_years=None,
+                confidence=confidence,
+                provider="huggingface_transformers_age_classifier",
+                details=f"Could not convert age label from {self._model_id}: {label}",
+            )
+
+        return AgeEstimate(
+            age_years=age_years,
+            confidence=confidence,
+            provider="huggingface_transformers_age_classifier",
+            details=f"model={self._model_id}; label={label}",
+        )
+
+
+def _age_from_classifier_label(label: str) -> int | None:
+    normalized = label.strip().lower()
+    if not normalized:
+        return None
+
+    semantic_labels = {
+        "baby": 1,
+        "toddler": 3,
+        "child": 8,
+        "kid": 8,
+        "teen": 14,
+        "teenager": 14,
+        "adult": 30,
+        "senior": 65,
+        "elderly": 70,
+    }
+    for key, age in semantic_labels.items():
+        if key in normalized:
+            return age
+
+    numbers = [int(match) for match in re.findall(r"\d+", normalized)]
+    if not numbers:
+        return None
+    if len(numbers) == 1:
+        return numbers[0]
+
+    lower = min(numbers[0], numbers[1])
+    upper = max(numbers[0], numbers[1])
+    return int(round((lower + upper) / 2))
 
 
 class HuggingFaceOnnxAgeEstimator:
@@ -199,7 +390,15 @@ class HuggingFaceOnnxAgeEstimator:
         self._model_path = model_path
         return self._preprocessor_config, self._session, self._model_path
 
-    def _preprocess_image(self, image: Image.Image, preprocessor_config: dict) -> np.ndarray:
+    def _preprocess_image(self, image: Any, preprocessor_config: dict) -> Any:
+        try:
+            import numpy as np
+            from PIL import Image
+        except ImportError as exc:  # pragma: no cover - depends on runtime
+            raise RuntimeError(
+                "numpy and Pillow are required for the ONNX face-age estimator."
+            ) from exc
+
         size_config = preprocessor_config.get("size", {})
         width = int(size_config.get("width", 224))
         height = int(size_config.get("height", 224))
@@ -224,6 +423,8 @@ class HuggingFaceOnnxAgeEstimator:
 
         with crop_detection_to_temp_file(image_path=image_path, detection=detection) as crop_path:
             try:
+                from PIL import Image
+
                 cropped_image = Image.open(crop_path).convert("RGB")
                 pixel_values = self._preprocess_image(cropped_image, preprocessor_config)
                 input_name = session.get_inputs()[0].name

@@ -1,0 +1,29 @@
+{
+  "image_path": "C:\\Users\\liort\\Documents\\GitHub\\LeakLock\\uploaded_images\\cute-black-kid-victoria-falls-zambia-113505420.webp",
+  "overall_risk_percent": 0,
+  "analyses": [
+    {
+      "detection": {
+        "class_id": 4,
+        "class_name": "face",
+        "confidence": 0.7655956149101257,
+        "box": {
+          "x1": 161.08416748046875,
+          "y1": 145.7274932861328,
+          "x2": 302.3854675292969,
+          "y2": 302.46722412109375
+        }
+      },
+      "route": "face_age_layer",
+      "risk": {
+        "layer_name": "face_age_layer",
+        "routed_from_class": "face",
+        "risk_percent": 0,
+        "reason": "Face detected, but age estimation could not run in the current environment",
+        "evidence": {
+          "error": "onnxruntime is required for the ONNX face-age estimator."
+        }
+      }
+    }
+  ]
+}

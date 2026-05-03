@@ -1,0 +1,5 @@
+LeakLock web app running at http://127.0.0.1:8765
+[LeakLockWeb] 127.0.0.1 - "GET /health HTTP/1.1" 200 -
+[LeakLockWeb] 127.0.0.1 - "GET / HTTP/1.1" 200 -
+[LeakLockWeb] 127.0.0.1 - code 404, message Not found
+[LeakLockWeb] 127.0.0.1 - "GET /favicon.ico HTTP/1.1" 404 -

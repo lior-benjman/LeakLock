@@ -7,7 +7,9 @@ from ..models import Detection, RiskResult
 from ..services.age_estimators import (
     AgeEstimator,
     DeepFaceAgeEstimator,
+    FallbackAgeEstimator,
     HuggingFaceOnnxAgeEstimator,
+    HuggingFaceTransformersAgeEstimator,
     UnavailableAgeEstimator,
 )
 
@@ -24,17 +26,20 @@ class FaceAgeRiskLayer:
         self._estimator = estimator or self._default_estimator()
 
     def _default_estimator(self) -> AgeEstimator:
-        try:
-            return HuggingFaceOnnxAgeEstimator(
-                repo_id=self._config.hf_age_model_repo_id,
-            )
-        except RuntimeError:
-            try:
-                return DeepFaceAgeEstimator(
+        return FallbackAgeEstimator(
+            [
+                HuggingFaceOnnxAgeEstimator(
+                    repo_id=self._config.hf_age_model_repo_id,
+                ),
+                HuggingFaceTransformersAgeEstimator(
+                    model_id=self._config.hf_age_classifier_model_id,
+                ),
+                DeepFaceAgeEstimator(
                     detector_backend=self._config.deepface_detector_backend,
-                )
-            except RuntimeError:
-                return UnavailableAgeEstimator()
+                ),
+                UnavailableAgeEstimator(),
+            ]
+        )
 
     def evaluate(self, image_path: Path, detection: Detection) -> RiskResult:
         try:
@@ -52,7 +57,7 @@ class FaceAgeRiskLayer:
                 layer_name="face_age_layer",
                 routed_from_class=detection.class_name,
                 risk_percent=0,
-                reason="Face detected, but age estimation model is not configured yet",
+                reason="Face detected, but no age estimate was available in the current environment",
                 evidence={"age_estimate": estimate.to_dict()},
             )
 

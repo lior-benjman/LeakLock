@@ -18,12 +18,13 @@ class PipelineConfig:
     yolo_weights_path: Path = field(
         default_factory=lambda: Path(__file__).resolve().parent.parent
         / "runs_sensitive"
-        / "yolov83"
+        / "yolov86"
         / "weights"
         / "best.pt"
     )
     detection_confidence_threshold: float = 0.25
     hf_age_model_repo_id: str = "onnx-community/age-gender-prediction-ONNX"
+    hf_age_classifier_model_id: str = "nateraw/vit-age-classifier"
     deepface_detector_backend: str = "opencv"
     license_plate_risk_percent: int = 75
     license_plate_reason: str = "License-plate was detected"

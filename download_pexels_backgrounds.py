@@ -2,11 +2,13 @@ import argparse
 import json
 import os
 import time
+import urllib.error
 import urllib.parse
 import urllib.request
 
 
 API_URL = "https://api.pexels.com/v1/search"
+RETRYABLE_HTTP_STATUS_CODES = {429, 500, 502, 503, 504}
 
 
 def parse_args():
@@ -70,6 +72,18 @@ def parse_args():
         default=0.4,
         help="Delay between API requests to avoid bursts.",
     )
+    parser.add_argument(
+        "--download-retries",
+        type=int,
+        default=4,
+        help="How many times to retry transient image-download failures before skipping a file.",
+    )
+    parser.add_argument(
+        "--retry-delay-seconds",
+        type=float,
+        default=2.0,
+        help="Base delay between download retries. Later retries back off automatically.",
+    )
     return parser.parse_args()
 
 
@@ -97,12 +111,37 @@ def http_get_json(url, headers):
         return json.loads(data.decode("utf-8")), dict(response.headers.items())
 
 
-def download_file(url, destination):
+def _is_retryable_download_error(error):
+    if isinstance(error, urllib.error.HTTPError):
+        return error.code in RETRYABLE_HTTP_STATUS_CODES
+    return isinstance(error, (urllib.error.URLError, TimeoutError))
+
+
+def download_file(url, destination, max_attempts=4, retry_delay_seconds=2.0):
     request = urllib.request.Request(url, headers={"User-Agent": "LeakLock synthetic dataset builder"})
-    with urllib.request.urlopen(request, timeout=120) as response:
-        content = response.read()
-    with open(destination, "wb") as handle:
-        handle.write(content)
+    last_error = None
+
+    for attempt in range(1, max_attempts + 1):
+        try:
+            with urllib.request.urlopen(request, timeout=120) as response:
+                content = response.read()
+            with open(destination, "wb") as handle:
+                handle.write(content)
+            return
+        except Exception as exc:
+            last_error = exc
+            if attempt >= max_attempts or not _is_retryable_download_error(exc):
+                raise
+
+            delay_seconds = retry_delay_seconds * attempt
+            print(
+                f"Retrying download after {exc.__class__.__name__}: {exc}. "
+                f"Attempt {attempt}/{max_attempts}, waiting {delay_seconds:.1f}s."
+            )
+            time.sleep(delay_seconds)
+
+    if last_error is not None:
+        raise last_error
 
 
 def load_existing_manifest(path):
@@ -166,6 +205,7 @@ def main():
     }
 
     total_downloaded = 0
+    total_skipped = 0
 
     for query in args.query:
         query_slug = slugify(query)
@@ -197,7 +237,20 @@ def main():
                 ext = photo_extension(photo, image_url)
                 filename = f"{query_slug}_{photo_id}{ext}"
                 image_path = os.path.join(image_dir, filename)
-                download_file(image_url, image_path)
+                try:
+                    download_file(
+                        image_url,
+                        image_path,
+                        max_attempts=max(1, args.download_retries),
+                        retry_delay_seconds=max(0.0, args.retry_delay_seconds),
+                    )
+                except Exception as exc:
+                    total_skipped += 1
+                    print(
+                        f"Skipping photo {photo_id} for query '{query}' after download failure: "
+                        f"{exc.__class__.__name__}: {exc}"
+                    )
+                    continue
 
                 manifest[photo_id] = {
                     "id": photo["id"],
@@ -228,6 +281,8 @@ def main():
 
     save_manifest(manifest_path, manifest)
     print(f"Downloaded {total_downloaded} new backgrounds into {args.output_dir}")
+    if total_skipped:
+        print(f"Skipped {total_skipped} backgrounds due to download failures")
     print(f"Metadata saved to {manifest_path}")
 
 

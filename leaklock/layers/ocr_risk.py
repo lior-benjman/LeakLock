@@ -54,11 +54,14 @@ class OcrRiskEvaluationLayer:
         ml_risk_percent: int | None = None
         fallback_reason: str | None = None
 
-        try:
-            document_ml_analysis = evaluate_document_risk(extraction.text)
-            ml_risk_percent = _clamp_percent(document_ml_analysis["risk"]["risk_percent"])
-        except Exception as exc:  # noqa: BLE001 - keep OCR path stable if ML branch fails.
-            fallback_reason = f"{exc.__class__.__name__}: {exc}"
+        if self._config.enable_document_ml_risk:
+            try:
+                document_ml_analysis = evaluate_document_risk(extraction.text)
+                ml_risk_percent = _clamp_percent(document_ml_analysis["risk"]["risk_percent"])
+            except Exception as exc:  # noqa: BLE001 - keep OCR path stable if ML branch fails.
+                fallback_reason = f"{exc.__class__.__name__}: {exc}"
+        else:
+            fallback_reason = "Document ML risk branch disabled by configuration"
 
         if ml_risk_percent is None:
             blended_risk_percent = rule_risk_percent

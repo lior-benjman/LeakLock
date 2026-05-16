@@ -1,0 +1,4 @@
+slice,images,ground_truth_objects,predicted_objects,mean_processing_seconds,image_risk_mae,image_risk_rmse,image_risk_band_accuracy,image_high_risk_precision,image_high_risk_recall,object_risk_mae,object_risk_rmse,object_risk_band_accuracy,unsupported_prediction_rate,ocr_success_rate,age_success_rate
+synthetic_only,1,1,1,146.59081,90.0,90.0,0.0,0.0,0.0,90.0,90.0,0.0,0.0,1.0,0.0
+real_only,0,0,0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0
+all_images,1,1,1,146.59081,90.0,90.0,0.0,0.0,0.0,90.0,90.0,0.0,0.0,1.0,0.0

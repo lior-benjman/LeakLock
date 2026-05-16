@@ -72,3 +72,4 @@ class PipelineConfig:
     ocr_digit_sequence_weight: int = 10
     ocr_name_weight: int = 15
     max_ocr_risk_percent: int = 90
+    enable_document_ml_risk: bool = True

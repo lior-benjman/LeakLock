@@ -48,7 +48,9 @@ class PipelineConfig:
             reason_template="Face estimated at 16 years old or older was detected",
         ),
     )
-    supported_document_classes: frozenset[str] = frozenset({"card", "document", "id"})
+    supported_document_classes: frozenset[str] = frozenset(
+        {"card", "document", "id", "id-card", "id_card", "passport"}
+    )
     supported_face_classes: frozenset[str] = frozenset({"face"})
     supported_license_plate_classes: frozenset[str] = frozenset({"license-plates", "license_plate"})
     ocr_high_risk_patterns: tuple[str, ...] = (

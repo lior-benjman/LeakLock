@@ -15,3 +15,4 @@ synthetic_document_output/
 build_combined_dataset.ps1
 build_combined_dataset.py
 combined_training_dataset.zip
+dataset/synthetic_medical_docs/

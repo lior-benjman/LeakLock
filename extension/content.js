@@ -98,15 +98,77 @@ const RISK_MESSAGES = {
   high:   'This image may contain sensitive information!',
 };
 
+function escapeHtml(value) {
+  return String(value ?? '')
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#039;');
+}
+
+function getAnalyses(payload) {
+  if (Array.isArray(payload.analyses)) return payload.analyses;
+  if (Array.isArray(payload.result?.analyses)) return payload.result.analyses;
+  return [];
+}
+
+function renderDetectionCards(payload) {
+  const analyses = getAnalyses(payload);
+  if (analyses.length) {
+    return analyses.map((analysis, index) => {
+      const detection = analysis.detection || {};
+      const risk = analysis.risk || {};
+      const evidence = risk.evidence || {};
+      const age = evidence.age_estimate || {};
+      const className = String(detection.class_name || 'object').replaceAll('_', ' ');
+      const confidence = Number(detection.confidence || 0);
+      const riskPercent = Number(risk.risk_percent || 0);
+      const ageLine = age.age_years !== undefined && age.age_years !== null
+        ? `<div class="ll-det-meta">Age estimate: <b>${escapeHtml(age.age_years)}</b>${age.confidence !== undefined && age.confidence !== null ? ` - confidence ${Number(age.confidence).toFixed(2)}` : ''}</div>`
+        : Object.keys(age).length
+          ? `<div class="ll-det-meta">Age estimate unavailable: ${escapeHtml(age.details || 'no details')}</div>`
+          : '';
+
+      return `
+        <div class="ll-detection-card">
+          <div class="ll-det-head">
+            <span>${index + 1}. ${escapeHtml(className)}</span>
+            <span>${riskPercent}%</span>
+          </div>
+          <div class="ll-det-meta">route: ${escapeHtml(analysis.route || '')} - detection confidence ${confidence.toFixed(2)}</div>
+          ${ageLine}
+          <div class="ll-det-reason">${escapeHtml(risk.reason || '')}</div>
+        </div>
+      `;
+    }).join('');
+  }
+
+  const detections = Array.isArray(payload.detections) ? payload.detections : [];
+  if (detections.length) {
+    return detections.map((detection, index) => `
+      <div class="ll-detection-card">
+        <div class="ll-det-head">
+          <span>${index + 1}. ${escapeHtml(detection.class_name || 'object')}</span>
+          <span>${Number(detection.confidence || 0).toFixed(2)}</span>
+        </div>
+      </div>
+    `).join('');
+  }
+
+  return '<div class="ll-detection-card"><div class="ll-det-head">No sensitive objects detected</div></div>';
+}
+
 function showResult(result, inputEl) {
   const { risk_score, risk_level, explanations = [] } = result;
   const c = RISK_COLORS[risk_level] || RISK_COLORS.medium;
-  const label   = RISK_LABELS[risk_level]   || risk_level.toUpperCase();
+  const label   = RISK_LABELS[risk_level]   || String(risk_level || 'medium').toUpperCase();
   const message = RISK_MESSAGES[risk_level] || RISK_MESSAGES.medium;
 
   const exHtml = explanations.length
-    ? explanations.map(e => `<li>${e}</li>`).join('')
-    : '<li>No specific sensitive items identified</li>';
+    ? explanations.map(e => `<li>${escapeHtml(e)}</li>`).join('')
+    : '<li>No specific sensitive risk explanation returned</li>';
+  const detectionsHtml = renderDetectionCards(result);
 
   const buttonsHtml = risk_level === 'low'
     ? `<button class="ll-btn ll-btn-primary" data-action="proceed">Continue Upload</button>`
@@ -119,17 +181,18 @@ function showResult(result, inputEl) {
   sr.innerHTML = `
     <style>
       ${BASE_CSS}
+      .ll-card{max-width:520px;max-height:92vh;overflow:auto}
       .ll-header{display:flex;align-items:center;gap:10px;margin-bottom:18px}
       .ll-logo{font-size:26px}
       .ll-title{font-size:17px;font-weight:700;color:#0f172a}
       .ll-bar-wrap{background:#f1f5f9;border-radius:99px;height:10px;margin-bottom:10px;overflow:hidden}
       .ll-bar{height:100%;border-radius:99px;background:${c.badge};width:${risk_score}%;transition:width .5s}
-      .ll-score-row{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px}
+      .ll-score-row{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;gap:12px}
       .ll-score{font-size:20px;font-weight:800;color:${c.text}}
       .ll-badge{
         background:${c.badge};color:#fff;
         padding:3px 12px;border-radius:99px;
-        font-size:11px;font-weight:700;letter-spacing:.6px;
+        font-size:11px;font-weight:700;letter-spacing:.6px;white-space:nowrap;
       }
       .ll-warn{
         background:${c.bg};border:1px solid ${c.border};
@@ -137,11 +200,19 @@ function showResult(result, inputEl) {
         color:${c.text};font-weight:600;font-size:14px;
       }
       .ll-explain{
-        margin:0 0 20px;padding:0 0 0 18px;
+        margin:0 0 14px;padding:0 0 0 18px;
         color:#475569;font-size:13px;line-height:1.65;list-style:disc;
       }
       .ll-explain li{margin-bottom:3px}
-      .ll-buttons{display:flex;gap:10px}
+      .ll-detections-title{font-size:12px;font-weight:800;color:#0f172a;text-transform:uppercase;margin:4px 0 8px}
+      .ll-detection-card{
+        border:1px solid #e2e8f0;border-radius:10px;
+        padding:10px 12px;margin-bottom:8px;background:#fff;
+      }
+      .ll-det-head{display:flex;justify-content:space-between;gap:10px;align-items:center;color:#0f172a;font-size:13px;font-weight:800}
+      .ll-det-meta{color:#64748b;font-size:12px;line-height:1.45;margin-top:4px}
+      .ll-det-reason{color:#334155;font-size:12px;line-height:1.45;margin-top:6px}
+      .ll-buttons{display:flex;gap:10px;margin-top:16px}
       .ll-btn{
         flex:1;padding:11px 8px;border-radius:9px;
         font-size:13px;font-weight:600;cursor:pointer;border:none;
@@ -164,6 +235,8 @@ function showResult(result, inputEl) {
         </div>
         <div class="ll-warn">${c.icon} ${message}</div>
         <ul class="ll-explain">${exHtml}</ul>
+        <div class="ll-detections-title">Detections</div>
+        ${detectionsHtml}
         <div class="ll-buttons">${buttonsHtml}</div>
       </div>
     </div>`;

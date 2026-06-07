@@ -1,7 +1,9 @@
 """LeakLock FastAPI backend — exposes the analysis pipeline for the Chrome extension."""
 from __future__ import annotations
 
+import importlib.util
 import os
+import sys
 import tempfile
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -12,14 +14,51 @@ from fastapi.middleware.cors import CORSMiddleware
 from leaklock.config import PipelineConfig
 from leaklock.pipeline import LeakLockPipeline
 
+REPO_ROOT = Path(__file__).resolve().parent.parent
+
 _pipeline: LeakLockPipeline | None = None
+_pipeline_config: PipelineConfig | None = None
+
+
+def _get_pipeline_config() -> PipelineConfig:
+    global _pipeline_config
+    if _pipeline_config is None:
+        # Match notebooks/leaklock_upload_pipeline.ipynb so the extension backend
+        # uses the same configured model weights as the notebook pipeline.
+        _pipeline_config = PipelineConfig(repo_root=REPO_ROOT)
+    return _pipeline_config
 
 
 def _get_pipeline() -> LeakLockPipeline:
     global _pipeline
     if _pipeline is None:
-        _pipeline = LeakLockPipeline(config=PipelineConfig())
+        _pipeline = LeakLockPipeline(config=_get_pipeline_config())
     return _pipeline
+
+
+def _model_metadata() -> dict[str, object]:
+    config = _get_pipeline_config()
+    return {
+        "repo_root": str(config.repo_root),
+        "yolo_weights": str(config.yolo_weights_path),
+        "yolo_weights_exists": config.yolo_weights_path.exists(),
+        "detection_confidence_threshold": config.detection_confidence_threshold,
+        "onnx_age_model_repo": config.hf_age_model_repo_id,
+        "transformers_age_model": config.hf_age_classifier_model_id,
+    }
+
+
+def _runtime_metadata() -> dict[str, object]:
+    return {
+        "python_executable": sys.executable,
+        "python_version": sys.version.split()[0],
+        "age_dependencies": {
+            "huggingface_hub": importlib.util.find_spec("huggingface_hub") is not None,
+            "onnxruntime": importlib.util.find_spec("onnxruntime") is not None,
+            "transformers": importlib.util.find_spec("transformers") is not None,
+            "deepface": importlib.util.find_spec("deepface") is not None,
+        },
+    }
 
 
 @asynccontextmanager
@@ -124,7 +163,12 @@ def _build_explanations(analyses: list) -> list[str]:
 
 @app.get("/health")
 async def health():
-    return {"status": "ok", "pipeline": "ready" if _pipeline else "initializing"}
+    return {
+        "status": "ok",
+        "pipeline": "ready" if _pipeline else "initializing",
+        "model": _model_metadata(),
+        "runtime": _runtime_metadata(),
+    }
 
 
 @app.post("/analyze-image")
@@ -162,7 +206,11 @@ async def analyze_image(file: UploadFile = File(...)):
             "risk_score": risk_score,
             "risk_level": _risk_level(risk_score),
             "detections": detections,
+            "analyses": [a.to_dict() for a in result.analyses],
+            "result": result.to_dict(),
             "explanations": explanations,
+            "model": _model_metadata(),
+            "runtime": _runtime_metadata(),
         }
     except Exception as exc:
         raise HTTPException(status_code=500, detail=str(exc)) from exc

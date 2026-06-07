@@ -9,11 +9,11 @@ function updateUI(enabled) {
   toggle.checked = enabled;
   if (enabled) {
     statusDot.className = 'status-dot active';
-    statusText.textContent = 'Active — monitoring image uploads';
+    statusText.textContent = 'Active - monitoring image uploads';
     toggleSublabel.textContent = 'LeakLock is ON';
   } else {
     statusDot.className = 'status-dot inactive';
-    statusText.textContent = 'Off — uploads are not monitored';
+    statusText.textContent = 'Off - uploads are not monitored';
     toggleSublabel.textContent = 'Click to enable';
   }
 }

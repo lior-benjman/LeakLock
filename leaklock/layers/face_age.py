@@ -48,7 +48,7 @@ class FaceAgeRiskLayer:
             return RiskResult(
                 layer_name="face_age_layer",
                 routed_from_class=detection.class_name,
-                risk_percent=0,
+                risk_percent=20,
                 reason="Face detected, but age estimation could not run in the current environment",
                 evidence={"error": str(exc)},
             )
@@ -56,7 +56,7 @@ class FaceAgeRiskLayer:
             return RiskResult(
                 layer_name="face_age_layer",
                 routed_from_class=detection.class_name,
-                risk_percent=0,
+                risk_percent=20,
                 reason="Face detected, but no age estimate was available in the current environment",
                 evidence={"age_estimate": estimate.to_dict()},
             )

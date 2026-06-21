@@ -44,7 +44,7 @@ class PipelineConfig:
         AgeRiskBand(
             min_age=16,
             max_age=200,
-            risk_percent=0,
+            risk_percent=20,
             reason_template="Face estimated at 16 years old or older was detected",
         ),
     )

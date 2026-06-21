@@ -5,6 +5,7 @@ const OVERLAY_HOST_ID = 'leaklock-overlay-host';
 
 let leaklockEnabled = false;
 let isAnalyzing = false;
+let _pendingFile = null; // stored during analysis so we can re-fire on proceed
 
 // ── State init ─────────────────────────────────────────────────────────────
 chrome.storage.local.get(['leaklockEnabled'], (data) => {
@@ -247,17 +248,22 @@ function showResult(result, inputEl) {
   sr.querySelectorAll('.ll-btn').forEach((btn) => {
     btn.addEventListener('click', () => {
       const action = btn.dataset.action;
-      if (action === 'cancel' && inputEl) {
-        // Clear the file input so the upload won't proceed
-        try { inputEl.value = ''; } catch (_) { /* read-only on some browsers */ }
+      if (action === 'cancel') {
+        // Host page was already blocked from receiving the file — just clear the input visually
+        try { if (inputEl) inputEl.value = ''; } catch (_) {}
+      } else {
+        // "Continue Upload" (low risk) or "Upload Anyway" (medium/high)
+        // Re-fire a change event so the host page can process the file normally
+        resumeUpload(inputEl);
       }
+      _pendingFile = null;
       closeOverlay();
     });
   });
 }
 
 // ── Error / backend unavailable ────────────────────────────────────────────
-function showError() {
+function showError(inputEl) {
   const sr = getOverlayShadow();
   sr.innerHTML = `
     <style>
@@ -283,14 +289,32 @@ function showError() {
       </div>
     </div>`;
 
-  sr.getElementById('ll-err-close')?.addEventListener('click', closeOverlay);
+  sr.getElementById('ll-err-close')?.addEventListener('click', () => {
+    resumeUpload(inputEl); // let the upload proceed as promised in the message
+    _pendingFile = null;
+    closeOverlay();
+  });
   isAnalyzing = false;
+}
+
+// ── Resume helper — re-fires the change event so the host page can process the file ──
+function resumeUpload(inputEl) {
+  if (!inputEl || !_pendingFile) return;
+  try {
+    const dt = new DataTransfer();
+    dt.items.add(_pendingFile);
+    inputEl.files = dt.files;
+    const resumeEvent = new Event('change', { bubbles: true });
+    resumeEvent._llResumed = true;
+    inputEl.dispatchEvent(resumeEvent);
+  } catch (_) {}
 }
 
 // ── Core analysis flow ─────────────────────────────────────────────────────
 async function analyzeFile(file, inputEl) {
   if (isAnalyzing) return;
   isAnalyzing = true;
+  _pendingFile = file;
   showAnalyzing();
 
   try {
@@ -305,12 +329,13 @@ async function analyzeFile(file, inputEl) {
     showResult(result, inputEl);
   } catch (err) {
     console.warn('[LeakLock] Backend error:', err.message);
-    showError();
+    showError(inputEl);
   }
 }
 
 // ── File input event handler ───────────────────────────────────────────────
 function handleFileChange(event) {
+  if (event._llResumed) return; // skip events we dispatched ourselves on proceed
   if (!leaklockEnabled) return;
   if (isAnalyzing) return;
 
@@ -318,6 +343,8 @@ function handleFileChange(event) {
   const file = input.files?.[0];
   if (!file || !file.type.startsWith('image/')) return;
 
+  // Block the host page from processing this file selection until the user decides
+  event.stopImmediatePropagation();
   analyzeFile(file, input);
 }
 
@@ -325,7 +352,8 @@ function handleFileChange(event) {
 function attachToInput(input) {
   if (input._llAttached) return;
   input._llAttached = true;
-  input.addEventListener('change', handleFileChange);
+  // Capture phase ensures our handler runs before the host page's bubble handlers
+  input.addEventListener('change', handleFileChange, true);
 }
 
 // Attach to file inputs already in DOM

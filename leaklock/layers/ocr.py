@@ -25,11 +25,12 @@ class OcrExtractionLayer:
         providers: list[OcrProvider] = []
         errors: list[str] = []
 
-        try:
-            providers.append(TrOcrProvider())
-        except RuntimeError as exc:
-            errors.append(f"TrOCR unavailable: {exc}")
-
+        # Ordered cheapest/fastest -> most expensive. FallbackOcrProvider stops
+        # at the first provider whose result is "good enough", so this order
+        # determines how often the expensive TrOCR pass actually gets paid for.
+        # RapidOCR: 1 inference pass. EasyOCR: up to 5, exits on first hit.
+        # Tesseract: up to 10 (5 variants x 2 PSM), exits on first hit.
+        # TrOCR: up to 39 (3 variants x ~13 slices) — last resort only.
         try:
             providers.append(RapidOcrProvider())
         except RuntimeError as exc:
@@ -44,6 +45,11 @@ class OcrExtractionLayer:
             providers.append(TesseractOcrProvider())
         except RuntimeError as exc:
             errors.append(f"Tesseract unavailable: {exc}")
+
+        try:
+            providers.append(TrOcrProvider())
+        except RuntimeError as exc:
+            errors.append(f"TrOCR unavailable: {exc}")
 
         if providers:
             return FallbackOcrProvider(providers)

@@ -161,7 +161,7 @@ class TrOcrProvider:
                 best_variant_name = variant_name
 
             # High-quality extraction reached; no need to try additional variants.
-            if best_score >= 220:
+            if best_score >= GOOD_ENOUGH_SCORE:
                 break
 
         if best_text:
@@ -244,6 +244,13 @@ def _collect_text_lines(results: list[object]) -> str:
         if len(item) >= 2 and item[1]:
             text_parts.append(str(item[1]).strip())
     return "\n".join(part for part in text_parts if part)
+
+
+# A score at or above this bar means the extracted text is substantial
+# enough that trying further (more expensive) providers/variants isn't
+# worth the cost. Matches the threshold TrOcrProvider already used
+# internally to stop trying additional image variants.
+GOOD_ENOUGH_SCORE = 220
 
 
 def _extraction_quality_score(text: str) -> int:
@@ -420,6 +427,13 @@ class TesseractOcrProvider:
 
 
 class FallbackOcrProvider:
+    """Tries providers in order, stopping as soon as one is good enough.
+
+    Providers should be ordered cheapest/fastest first so the common case
+    (a clean image) resolves on the first or second provider instead of
+    always paying for every engine in the chain.
+    """
+
     def __init__(self, providers: list[OcrProvider]) -> None:
         self._providers = providers
 
@@ -439,6 +453,10 @@ class FallbackOcrProvider:
             attempts.append(
                 f"{extraction.provider}: score={score}; details={extraction.details}"
             )
+
+            if best_score >= GOOD_ENOUGH_SCORE:
+                # Good enough — skip the remaining, more expensive providers.
+                break
 
         if best_extraction and best_score > 0:
             return best_extraction

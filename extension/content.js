@@ -2,10 +2,11 @@
 
 const API_URL = 'http://localhost:8000/analyze-image';
 const OVERLAY_HOST_ID = 'leaklock-overlay-host';
+const MAX_BATCH_FILES = 10;
 
 let leaklockEnabled = false;
 let isAnalyzing = false;
-let _pendingFile = null; // stored during analysis so we can re-fire on proceed
+let currentBatch = null; // set while a multi-image accordion overlay is open
 
 // ── State init ─────────────────────────────────────────────────────────────
 chrome.storage.local.get(['leaklockEnabled'], (data) => {
@@ -56,36 +57,121 @@ const BASE_CSS = `
     padding:28px 26px;max-width:440px;width:90%;
     box-shadow:0 24px 64px rgba(0,0,0,0.45);
   }
+  .ll-card.ll-card-wide{max-width:560px;max-height:92vh;overflow:auto}
+  .ll-header{display:flex;align-items:center;gap:10px;margin-bottom:18px}
+  .ll-logo{font-size:26px}
+  .ll-title{font-size:17px;font-weight:700;color:#0f172a}
+  .ll-bar-wrap{background:#f1f5f9;border-radius:99px;height:10px;margin-bottom:10px;overflow:hidden}
+  .ll-bar{height:100%;border-radius:99px;transition:width .4s}
+  .ll-score-row{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;gap:12px}
+  .ll-score{font-size:20px;font-weight:800}
+  .ll-badge{
+    color:#fff;padding:3px 12px;border-radius:99px;
+    font-size:11px;font-weight:700;letter-spacing:.4px;white-space:nowrap;
+  }
+  .ll-warn{
+    border:1px solid;border-radius:10px;padding:13px 15px;margin-bottom:14px;
+    font-weight:600;font-size:14px;
+  }
+  .ll-explain{
+    margin:0 0 14px;padding:0 0 0 18px;
+    color:#475569;font-size:13px;line-height:1.65;list-style:disc;
+  }
+  .ll-explain li{margin-bottom:3px}
+  .ll-detections-title{font-size:12px;font-weight:800;color:#0f172a;text-transform:uppercase;margin:4px 0 8px}
+  .ll-detection-card{
+    border:1px solid #e2e8f0;border-radius:10px;
+    padding:10px 12px;margin-bottom:8px;background:#fff;
+  }
+  .ll-det-head{display:flex;justify-content:space-between;gap:10px;align-items:center;color:#0f172a;font-size:13px;font-weight:800}
+  .ll-det-meta{color:#64748b;font-size:12px;line-height:1.45;margin-top:4px}
+  .ll-det-reason{color:#334155;font-size:12px;line-height:1.45;margin-top:6px}
+  .ll-buttons{display:flex;gap:10px;margin-top:16px}
+  .ll-btn{
+    flex:1;padding:11px 8px;border-radius:9px;
+    font-size:13px;font-weight:600;cursor:pointer;border:none;
+  }
+  .ll-btn-cancel{background:#f1f5f9;color:#475569;border:2px solid #e2e8f0}
+  .ll-btn-cancel:hover{background:#e2e8f0}
+  .ll-btn-primary{background:#3b82f6;color:#fff}
+  .ll-btn-primary:hover{opacity:.88}
+  .ll-btn-primary:disabled{background:#cbd5e1;cursor:not-allowed;opacity:1}
+  .ll-btn-blur{background:#7c3aed;color:#fff}
+  .ll-btn-blur:hover{opacity:.88}
+  .ll-logo-center{font-size:30px;margin-bottom:14px;text-align:center}
+  .ll-title-center{font-size:18px;font-weight:700;color:#0f172a;text-align:center;margin-bottom:18px}
+  .ll-spinner{
+    width:44px;height:44px;
+    border:4px solid #e2e8f0;border-top-color:#3b82f6;
+    border-radius:50%;animation:ll-spin 0.9s linear infinite;
+    margin:0 auto 14px;
+  }
+  @keyframes ll-spin{to{transform:rotate(360deg)}}
+  .ll-sub{font-size:13px;color:#64748b;text-align:center}
+`;
+
+const BATCH_CSS = `
+  .ll-batch-note{
+    background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;
+    padding:8px 12px;margin-bottom:14px;color:#1e40af;font-size:12px;line-height:1.5;
+  }
+  .ll-batch-list{display:flex;flex-direction:column;gap:8px;margin-bottom:16px}
+  .ll-batch-row{border:1px solid #e2e8f0;border-radius:12px;overflow:hidden}
+  .ll-batch-row-header{
+    width:100%;display:flex;align-items:center;justify-content:space-between;gap:10px;
+    background:#fff;border:none;padding:12px 14px;cursor:pointer;text-align:left;
+  }
+  .ll-batch-row-name{font-size:13px;font-weight:600;color:#0f172a;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:220px}
+  .ll-batch-row-right{display:flex;align-items:center;gap:8px}
+  .ll-chevron{color:#94a3b8;font-size:12px}
+  .ll-batch-row-body{padding:0 14px 14px}
+  .ll-batch-hint{margin-top:10px;font-size:12px;color:#b91c1c;text-align:center}
+  .ll-batch-blur-status{font-size:12px;color:#7c3aed;margin-top:8px;text-align:center}
+  .ll-batch-blur-error{
+    background:#fef2f2;border:1px solid #fecaca;border-radius:8px;
+    padding:8px 10px;margin-top:8px;color:#b91c1c;font-size:12px;line-height:1.5;
+  }
 `;
 
 // ── "Analyzing…" state ─────────────────────────────────────────────────────
 function showAnalyzing() {
   const sr = getOverlayShadow();
   sr.innerHTML = `
-    <style>
-      ${BASE_CSS}
-      .ll-logo{font-size:30px;margin-bottom:14px;text-align:center}
-      .ll-title{font-size:18px;font-weight:700;color:#0f172a;text-align:center;margin-bottom:18px}
-      .ll-spinner{
-        width:44px;height:44px;
-        border:4px solid #e2e8f0;border-top-color:#3b82f6;
-        border-radius:50%;animation:ll-spin 0.9s linear infinite;
-        margin:0 auto 14px;
-      }
-      @keyframes ll-spin{to{transform:rotate(360deg)}}
-      .ll-sub{font-size:13px;color:#64748b;text-align:center}
-    </style>
+    <style>${BASE_CSS}</style>
     <div class="ll-overlay">
       <div class="ll-card">
-        <div class="ll-logo">🔒</div>
-        <div class="ll-title">LeakLock</div>
+        <div class="ll-logo-center">🔒</div>
+        <div class="ll-title-center">LeakLock</div>
         <div class="ll-spinner"></div>
         <div class="ll-sub">Analyzing image for sensitive content…</div>
       </div>
     </div>`;
 }
 
-// ── Result state ───────────────────────────────────────────────────────────
+function showBatchProgress(current, total, fileName) {
+  if (total <= 1) {
+    showAnalyzing();
+    return;
+  }
+  const pct = Math.round(((current - 1) / total) * 100);
+  const sr = getOverlayShadow();
+  sr.innerHTML = `
+    <style>${BASE_CSS}</style>
+    <div class="ll-overlay">
+      <div class="ll-card">
+        <div class="ll-logo-center">🔒</div>
+        <div class="ll-title-center">LeakLock</div>
+        <div class="ll-spinner"></div>
+        <div class="ll-sub">Analyzing image ${current} of ${total}…</div>
+        <div class="ll-bar-wrap" style="margin-top:14px">
+          <div class="ll-bar" style="background:#3b82f6;width:${pct}%"></div>
+        </div>
+        <div class="ll-sub" style="margin-top:6px;font-size:11px;opacity:.75">${escapeHtml(fileName)}</div>
+      </div>
+    </div>`;
+}
+
+// ── Result rendering helpers ───────────────────────────────────────────────
 const RISK_COLORS = {
   low:    { bg: '#f0fdf4', border: '#16a34a', text: '#15803d', badge: '#16a34a', icon: '✓' },
   medium: { bg: '#fff7ed', border: '#ea580c', text: '#c2410c', badge: '#ea580c', icon: '⚠️' },
@@ -109,8 +195,8 @@ function escapeHtml(value) {
 }
 
 function getAnalyses(payload) {
-  if (Array.isArray(payload.analyses)) return payload.analyses;
-  if (Array.isArray(payload.result?.analyses)) return payload.result.analyses;
+  if (Array.isArray(payload?.analyses)) return payload.analyses;
+  if (Array.isArray(payload?.result?.analyses)) return payload.result.analyses;
   return [];
 }
 
@@ -145,7 +231,7 @@ function renderDetectionCards(payload) {
     }).join('');
   }
 
-  const detections = Array.isArray(payload.detections) ? payload.detections : [];
+  const detections = Array.isArray(payload?.detections) ? payload.detections : [];
   if (detections.length) {
     return detections.map((detection, index) => `
       <div class="ll-detection-card">
@@ -160,18 +246,35 @@ function renderDetectionCards(payload) {
   return '<div class="ll-detection-card"><div class="ll-det-head">No sensitive objects detected</div></div>';
 }
 
-function showResult(result, inputEl) {
-  const { risk_score, risk_level, explanations = [] } = result;
+// Pure string-builder: the score bar / explanations / detections block shared
+// by both the single-image card and each accordion row's expanded body.
+function renderRiskDetail(result) {
+  const { risk_score = 0, risk_level, explanations = [] } = result || {};
   const c = RISK_COLORS[risk_level] || RISK_COLORS.medium;
-  const label   = RISK_LABELS[risk_level]   || String(risk_level || 'medium').toUpperCase();
+  const label = RISK_LABELS[risk_level] || String(risk_level || 'medium').toUpperCase();
   const message = RISK_MESSAGES[risk_level] || RISK_MESSAGES.medium;
-
   const exHtml = explanations.length
-    ? explanations.map(e => `<li>${escapeHtml(e)}</li>`).join('')
+    ? explanations.map((e) => `<li>${escapeHtml(e)}</li>`).join('')
     : '<li>No specific sensitive risk explanation returned</li>';
   const detectionsHtml = renderDetectionCards(result);
 
-  const buttonsHtml = risk_level === 'low'
+  return `
+    <div class="ll-bar-wrap"><div class="ll-bar" style="background:${c.badge};width:${risk_score}%"></div></div>
+    <div class="ll-score-row">
+      <span class="ll-score" style="color:${c.text}">Risk Score: ${risk_score}%</span>
+      <span class="ll-badge" style="background:${c.badge}">${label}</span>
+    </div>
+    <div class="ll-warn" style="background:${c.bg};border-color:${c.border};color:${c.text}">${c.icon} ${message}</div>
+    <ul class="ll-explain">${exHtml}</ul>
+    <div class="ll-detections-title">Detections</div>
+    ${detectionsHtml}
+  `;
+}
+
+// ── Single-image result overlay (used when exactly one image is analyzed) ──
+function showResult(result, onProceed, onCancel) {
+  const riskLevel = result?.risk_level;
+  const buttonsHtml = riskLevel === 'low'
     ? `<button class="ll-btn ll-btn-primary" data-action="proceed">Continue Upload</button>`
     : `
       <button class="ll-btn ll-btn-cancel"  data-action="cancel">Cancel Upload</button>
@@ -180,129 +283,304 @@ function showResult(result, inputEl) {
 
   const sr = getOverlayShadow();
   sr.innerHTML = `
-    <style>
-      ${BASE_CSS}
-      .ll-card{max-width:520px;max-height:92vh;overflow:auto}
-      .ll-header{display:flex;align-items:center;gap:10px;margin-bottom:18px}
-      .ll-logo{font-size:26px}
-      .ll-title{font-size:17px;font-weight:700;color:#0f172a}
-      .ll-bar-wrap{background:#f1f5f9;border-radius:99px;height:10px;margin-bottom:10px;overflow:hidden}
-      .ll-bar{height:100%;border-radius:99px;background:${c.badge};width:${risk_score}%;transition:width .5s}
-      .ll-score-row{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;gap:12px}
-      .ll-score{font-size:20px;font-weight:800;color:${c.text}}
-      .ll-badge{
-        background:${c.badge};color:#fff;
-        padding:3px 12px;border-radius:99px;
-        font-size:11px;font-weight:700;letter-spacing:.6px;white-space:nowrap;
-      }
-      .ll-warn{
-        background:${c.bg};border:1px solid ${c.border};
-        border-radius:10px;padding:13px 15px;margin-bottom:14px;
-        color:${c.text};font-weight:600;font-size:14px;
-      }
-      .ll-explain{
-        margin:0 0 14px;padding:0 0 0 18px;
-        color:#475569;font-size:13px;line-height:1.65;list-style:disc;
-      }
-      .ll-explain li{margin-bottom:3px}
-      .ll-detections-title{font-size:12px;font-weight:800;color:#0f172a;text-transform:uppercase;margin:4px 0 8px}
-      .ll-detection-card{
-        border:1px solid #e2e8f0;border-radius:10px;
-        padding:10px 12px;margin-bottom:8px;background:#fff;
-      }
-      .ll-det-head{display:flex;justify-content:space-between;gap:10px;align-items:center;color:#0f172a;font-size:13px;font-weight:800}
-      .ll-det-meta{color:#64748b;font-size:12px;line-height:1.45;margin-top:4px}
-      .ll-det-reason{color:#334155;font-size:12px;line-height:1.45;margin-top:6px}
-      .ll-buttons{display:flex;gap:10px;margin-top:16px}
-      .ll-btn{
-        flex:1;padding:11px 8px;border-radius:9px;
-        font-size:13px;font-weight:600;cursor:pointer;border:none;
-      }
-      .ll-btn-cancel{background:#f1f5f9;color:#475569;border:2px solid #e2e8f0}
-      .ll-btn-cancel:hover{background:#e2e8f0}
-      .ll-btn-primary{background:${c.badge};color:#fff}
-      .ll-btn-primary:hover{opacity:.88}
-    </style>
+    <style>${BASE_CSS}</style>
     <div class="ll-overlay">
-      <div class="ll-card">
+      <div class="ll-card ll-card-wide">
         <div class="ll-header">
           <span class="ll-logo">🔒</span>
           <span class="ll-title">LeakLock Analysis</span>
         </div>
-        <div class="ll-bar-wrap"><div class="ll-bar"></div></div>
-        <div class="ll-score-row">
-          <span class="ll-score">Risk Score: ${risk_score}%</span>
-          <span class="ll-badge">${label}</span>
-        </div>
-        <div class="ll-warn">${c.icon} ${message}</div>
-        <ul class="ll-explain">${exHtml}</ul>
-        <div class="ll-detections-title">Detections</div>
-        ${detectionsHtml}
+        ${renderRiskDetail(result)}
         <div class="ll-buttons">${buttonsHtml}</div>
       </div>
     </div>`;
 
   isAnalyzing = false;
 
-  // Wire buttons
   sr.querySelectorAll('.ll-btn').forEach((btn) => {
     btn.addEventListener('click', () => {
-      const action = btn.dataset.action;
-      if (action === 'cancel') {
-        // Host page was already blocked from receiving the file — just clear the input visually
-        try { if (inputEl) inputEl.value = ''; } catch (_) {}
+      if (btn.dataset.action === 'cancel') {
+        onCancel();
       } else {
-        // "Continue Upload" (low risk) or "Upload Anyway" (medium/high)
-        // Re-fire a change event so the host page can process the file normally
-        resumeUpload(inputEl);
+        onProceed();
       }
-      _pendingFile = null;
       closeOverlay();
     });
   });
 }
 
 // ── Error / backend unavailable ────────────────────────────────────────────
-function showError(inputEl) {
+function showError(onProceed) {
   const sr = getOverlayShadow();
   sr.innerHTML = `
-    <style>
-      ${BASE_CSS}
-      .ll-title{font-size:17px;font-weight:700;color:#0f172a;text-align:center;margin-bottom:10px}
-      .ll-msg{font-size:13px;color:#64748b;text-align:center;margin-bottom:18px;line-height:1.5}
-      .ll-code{font-family:monospace;background:#f1f5f9;border-radius:6px;padding:6px 10px;font-size:12px;color:#0f172a}
-      .ll-btn-close{
-        display:block;width:100%;padding:10px;border-radius:9px;border:none;
-        background:#3b82f6;color:#fff;font-size:13px;font-weight:600;cursor:pointer;
-      }
-      .ll-btn-close:hover{opacity:.88}
-    </style>
+    <style>${BASE_CSS}</style>
     <div class="ll-overlay">
       <div class="ll-card" style="text-align:center">
-        <div class="ll-title">🔒 LeakLock</div>
-        <div class="ll-msg">
+        <div class="ll-title-center">🔒 LeakLock</div>
+        <div class="ll-sub" style="margin-bottom:18px;line-height:1.5">
           Backend unavailable — upload will proceed normally.<br><br>
           Start the server with:<br>
-          <span class="ll-code">uvicorn leaklock.api:app --port 8000</span>
+          <span style="font-family:monospace;background:#f1f5f9;border-radius:6px;padding:6px 10px;font-size:12px;color:#0f172a;display:inline-block;margin-top:6px">
+            uvicorn leaklock.api:app --port 8000
+          </span>
         </div>
-        <button class="ll-btn-close" id="ll-err-close">Close</button>
+        <button class="ll-btn ll-btn-primary" id="ll-err-close" style="width:100%">Close</button>
       </div>
     </div>`;
 
   sr.getElementById('ll-err-close')?.addEventListener('click', () => {
-    resumeUpload(inputEl); // let the upload proceed as promised in the message
-    _pendingFile = null;
+    onProceed();
     closeOverlay();
   });
   isAnalyzing = false;
 }
 
-// ── Resume helper — re-fires the change event so the host page can process the file ──
-function resumeUpload(inputEl) {
-  if (!inputEl || !_pendingFile) return;
+// ── Batch (multi-image) accordion overlay ──────────────────────────────────
+function decisionLabel(decision) {
+  return { upload: 'Upload As-Is', blur: 'Blurred', exclude: "Won't Upload" }[decision] || '';
+}
+
+function renderDecisionButtons(item, idx) {
+  if (item.blurPending) {
+    return `<div class="ll-batch-blur-status">Blurring…</div>`;
+  }
+  const errorHtml = item.blurError
+    ? `<div class="ll-batch-blur-error">Blur failed: ${escapeHtml(item.blurError)}. Choose an option below.</div>`
+    : '';
+  return `
+    ${errorHtml}
+    <div class="ll-buttons">
+      <button class="ll-btn ll-btn-cancel" data-decision="exclude" data-row-index="${idx}">Don't Upload</button>
+      <button class="ll-btn ll-btn-blur" data-decision="blur" data-row-index="${idx}">Blur &amp; Upload</button>
+      <button class="ll-btn ll-btn-primary" data-decision="upload" data-row-index="${idx}">Upload As-Is</button>
+    </div>`;
+}
+
+function renderBatchRow(item, idx) {
+  const isLow = item.riskLevel === 'low';
+  const c = RISK_COLORS[item.riskLevel] || RISK_COLORS.medium;
+  const label = RISK_LABELS[item.riskLevel] || String(item.riskLevel || '').toUpperCase();
+
+  const headerRight = isLow
+    ? `<span class="ll-badge" style="background:${c.badge}">${label}</span>`
+    : item.decision
+      ? `<span class="ll-badge" style="background:${c.badge}">${label} · ${escapeHtml(decisionLabel(item.decision))}</span>`
+      : `<span class="ll-badge" style="background:${c.badge}">${label} · Needs decision</span>`;
+
+  const bodyHtml = item.expanded
+    ? `<div class="ll-batch-row-body">${renderRiskDetail(item.result)}${isLow ? '' : renderDecisionButtons(item, idx)}</div>`
+    : '';
+
+  return `
+    <div class="ll-batch-row" data-row-index="${idx}">
+      <button class="ll-batch-row-header" data-toggle-row="${idx}">
+        <span class="ll-batch-row-name">${escapeHtml(item.file.name)}</span>
+        <span class="ll-batch-row-right">
+          ${headerRight}
+          <span class="ll-chevron">${item.expanded ? '▾' : '▸'}</span>
+        </span>
+      </button>
+      ${bodyHtml}
+    </div>`;
+}
+
+// Pure: whether every risky (non-low) item has a decision made.
+function allRiskyDecided(items) {
+  return items.every((item) => item.riskLevel === 'low' || !!item.decision);
+}
+
+function renderBatchOverlay() {
+  const batch = currentBatch;
+  if (!batch) return;
+
+  const sr = getOverlayShadow();
+  const decided = allRiskyDecided(batch.items);
+  const rowsHtml = batch.items.map((item, idx) => renderBatchRow(item, idx)).join('');
+  const skippedNote = batch.skippedCount > 0
+    ? `<div class="ll-batch-note">Only the first ${batch.items.length} images were scanned — ${batch.skippedCount} additional image(s) will be uploaded without analysis (max ${MAX_BATCH_FILES} per batch).</div>`
+    : '';
+
+  sr.innerHTML = `
+    <style>${BASE_CSS}${BATCH_CSS}</style>
+    <div class="ll-overlay">
+      <div class="ll-card ll-card-wide">
+        <div class="ll-header">
+          <span class="ll-logo">🔒</span>
+          <span class="ll-title">LeakLock — ${batch.items.length} image${batch.items.length === 1 ? '' : 's'} analyzed</span>
+        </div>
+        ${skippedNote}
+        <div class="ll-batch-list">${rowsHtml}</div>
+        <div class="ll-buttons">
+          <button class="ll-btn ll-btn-cancel" data-batch-action="cancel-all">Cancel All</button>
+          <button class="ll-btn ll-btn-primary" data-batch-action="continue" ${decided ? '' : 'disabled'}>Continue Upload</button>
+        </div>
+        ${decided ? '' : '<div class="ll-batch-hint">Decide on every flagged image to continue</div>'}
+      </div>
+    </div>`;
+
+  wireBatchOverlay(sr, batch);
+}
+
+function wireBatchOverlay(sr, batch) {
+  sr.querySelectorAll('[data-toggle-row]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const idx = Number(btn.dataset.toggleRow);
+      batch.items[idx].expanded = !batch.items[idx].expanded;
+      renderBatchOverlay();
+    });
+  });
+
+  sr.querySelectorAll('[data-decision]').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      const idx = Number(btn.dataset.rowIndex);
+      const item = batch.items[idx];
+      const decision = btn.dataset.decision;
+
+      if (decision === 'blur') {
+        item.blurPending = true;
+        item.blurError = null;
+        renderBatchOverlay();
+        try {
+          item.blurredFile = await blurImage(item.file, item.result);
+          item.decision = 'blur';
+        } catch (err) {
+          item.blurError = err?.message || 'Unknown error';
+          item.decision = null; // do not silently fall back — force an explicit re-decision
+        } finally {
+          item.blurPending = false;
+          renderBatchOverlay();
+        }
+        return;
+      }
+
+      item.decision = decision; // 'upload' or 'exclude'
+      item.expanded = false;
+      renderBatchOverlay();
+    });
+  });
+
+  sr.querySelector('[data-batch-action="cancel-all"]')?.addEventListener('click', () => {
+    try { if (batch.inputEl) batch.inputEl.value = ''; } catch (_) {}
+    currentBatch = null;
+    closeOverlay();
+  });
+
+  sr.querySelector('[data-batch-action="continue"]')?.addEventListener('click', () => {
+    if (!allRiskyDecided(batch.items)) return;
+    const finalFiles = buildFinalFileList(batch.originalOrder, batch.items);
+    resumeFiles(batch.inputEl, finalFiles);
+    currentBatch = null;
+    closeOverlay();
+  });
+}
+
+// Pure: reconstructs the final ordered file list from the original selection
+// and each analyzed item's decision. Non-analyzed files (non-images, or
+// images beyond the MAX_BATCH_FILES cap) pass through unmodified.
+function buildFinalFileList(originalOrder, items) {
+  const byFile = new Map(items.map((item) => [item.file, item]));
+  const finalFiles = [];
+
+  for (const original of originalOrder) {
+    const item = byFile.get(original);
+    if (!item) {
+      finalFiles.push(original);
+      continue;
+    }
+    if (item.riskLevel === 'low' || item.decision === 'upload') {
+      finalFiles.push(item.file);
+    } else if (item.decision === 'blur' && item.blurredFile) {
+      finalFiles.push(item.blurredFile);
+    }
+    // decision === 'exclude' -> omit entirely
+  }
+
+  return finalFiles;
+}
+
+// ── Region blurring ─────────────────────────────────────────────────────────
+// Pure: extracts bounding boxes for every detection that contributed risk.
+function collectRiskyBoxes(result) {
+  const analyses = getAnalyses(result);
+  const boxes = [];
+  for (const analysis of analyses) {
+    const risk = analysis?.risk || {};
+    if (!(Number(risk.risk_percent) > 0)) continue;
+    const box = analysis?.detection?.box;
+    if (!box) continue;
+    boxes.push({
+      x1: Number(box.x1) || 0,
+      y1: Number(box.y1) || 0,
+      x2: Number(box.x2) || 0,
+      y2: Number(box.y2) || 0,
+    });
+  }
+  return boxes;
+}
+
+// Pure: computes the source/destination rectangle and downsample size for
+// pixelating one region. Clamped to canvas bounds defensively.
+function computePixelRegion(box, canvasWidth, canvasHeight, blockSize) {
+  const x = Math.max(0, Math.min(canvasWidth - 1, Math.floor(box.x1)));
+  const y = Math.max(0, Math.min(canvasHeight - 1, Math.floor(box.y1)));
+  const x2 = Math.max(x + 1, Math.min(canvasWidth, Math.ceil(box.x2)));
+  const y2 = Math.max(y + 1, Math.min(canvasHeight, Math.ceil(box.y2)));
+  const w = x2 - x;
+  const h = y2 - y;
+  const smallW = Math.max(1, Math.round(w / blockSize));
+  const smallH = Math.max(1, Math.round(h / blockSize));
+  return { x, y, w, h, smallW, smallH };
+}
+
+function pixelateRegion(ctx, box, blockSize) {
+  const { x, y, w, h, smallW, smallH } = computePixelRegion(box, ctx.canvas.width, ctx.canvas.height, blockSize);
+
+  const tmp = document.createElement('canvas');
+  tmp.width = smallW;
+  tmp.height = smallH;
+  const tmpCtx = tmp.getContext('2d');
+  tmpCtx.drawImage(ctx.canvas, x, y, w, h, 0, 0, smallW, smallH);
+
+  ctx.imageSmoothingEnabled = false;
+  ctx.drawImage(tmp, 0, 0, smallW, smallH, x, y, w, h);
+  ctx.imageSmoothingEnabled = true;
+}
+
+// Produces a new File with every risky detection region pixelated. Errors
+// are NOT swallowed here — the caller must treat a thrown error as "blurring
+// failed," not silently fall back to the original (unblurred) image, since
+// the user explicitly asked for this content to be redacted.
+async function blurImage(file, result) {
+  const boxes = collectRiskyBoxes(result);
+  if (!boxes.length) return file; // nothing flagged as risky to blur
+
+  const bitmap = await createImageBitmap(file);
+  const canvas = document.createElement('canvas');
+  canvas.width = bitmap.width;
+  canvas.height = bitmap.height;
+  const ctx = canvas.getContext('2d');
+  ctx.drawImage(bitmap, 0, 0);
+  bitmap.close?.();
+
+  const blockSize = Math.max(8, Math.round(Math.min(canvas.width, canvas.height) / 30));
+  for (const box of boxes) {
+    pixelateRegion(ctx, box, blockSize);
+  }
+
+  const outType = file.type && file.type.startsWith('image/') ? file.type : 'image/png';
+  const blob = await new Promise((resolve, reject) => {
+    canvas.toBlob((b) => (b ? resolve(b) : reject(new Error('canvas.toBlob returned null'))), outType, 0.92);
+  });
+
+  return new File([blob], file.name || 'image.png', { type: blob.type, lastModified: Date.now() });
+}
+
+// ── Resume helper — re-fires change with a (possibly modified) file list ───
+function resumeFiles(inputEl, files) {
+  if (!inputEl) return;
   try {
     const dt = new DataTransfer();
-    dt.items.add(_pendingFile);
+    for (const f of files) dt.items.add(f);
     inputEl.files = dt.files;
     const resumeEvent = new Event('change', { bubbles: true });
     resumeEvent._llResumed = true;
@@ -311,26 +589,58 @@ function resumeUpload(inputEl) {
 }
 
 // ── Core analysis flow ─────────────────────────────────────────────────────
-async function analyzeFile(file, inputEl) {
+async function fetchAnalysis(file) {
+  const body = new FormData();
+  body.append('file', file, file.name || 'upload.jpg');
+  const response = await fetch(API_URL, { method: 'POST', body });
+  if (!response.ok) throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+  return response.json();
+}
+
+async function analyzeBatch(imageFiles, originalOrder, inputEl, skippedCount) {
   if (isAnalyzing) return;
   isAnalyzing = true;
-  _pendingFile = file;
-  showAnalyzing();
 
-  try {
-    const body = new FormData();
-    body.append('file', file, file.name || 'upload.jpg');
+  const items = imageFiles.map((file) => ({
+    file,
+    result: null,
+    riskLevel: null,
+    decision: null,
+    blurredFile: null,
+    blurPending: false,
+    blurError: null,
+    expanded: false,
+  }));
 
-    const response = await fetch(API_URL, { method: 'POST', body });
-
-    if (!response.ok) throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-
-    const result = await response.json();
-    showResult(result, inputEl);
-  } catch (err) {
-    console.warn('[LeakLock] Backend error:', err.message);
-    showError(inputEl);
+  for (let i = 0; i < items.length; i++) {
+    showBatchProgress(i + 1, items.length, items[i].file.name);
+    try {
+      items[i].result = await fetchAnalysis(items[i].file);
+      items[i].riskLevel = items[i].result.risk_level;
+    } catch (err) {
+      console.warn('[LeakLock] Backend error:', err.message);
+      isAnalyzing = false;
+      // Fail open for the whole batch: the backend is down for every file
+      // equally, so resume the original selection unmodified.
+      showError(() => resumeFiles(inputEl, originalOrder));
+      return;
+    }
   }
+
+  isAnalyzing = false;
+
+  if (items.length === 1) {
+    showResult(
+      items[0].result,
+      () => resumeFiles(inputEl, originalOrder), // single image: original selection passes through unchanged
+      () => { try { inputEl.value = ''; } catch (_) {} },
+    );
+    return;
+  }
+
+  items.forEach((item) => { item.expanded = item.riskLevel !== 'low'; });
+  currentBatch = { inputEl, originalOrder, items, skippedCount };
+  renderBatchOverlay();
 }
 
 // ── File type detection ────────────────────────────────────────────────────
@@ -352,12 +662,16 @@ function handleFileChange(event) {
   if (isAnalyzing) return;
 
   const input = event.target;
-  const file = input.files?.[0];
-  if (!isImageFile(file)) return;
+  const allFiles = Array.from(input.files || []);
+  const imageFiles = allFiles.filter(isImageFile);
+  if (!imageFiles.length) return; // nothing for us to analyze — let the host handle it normally
 
   // Block the host page from processing this file selection until the user decides
   event.stopImmediatePropagation();
-  analyzeFile(file, input);
+
+  const capped = imageFiles.slice(0, MAX_BATCH_FILES);
+  const skippedCount = imageFiles.length - capped.length;
+  analyzeBatch(capped, allFiles, input, skippedCount);
 }
 
 // ── Attach / observe ───────────────────────────────────────────────────────

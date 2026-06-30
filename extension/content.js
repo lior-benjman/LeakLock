@@ -359,11 +359,12 @@ function renderBatchRow(item, idx, isSingle) {
     <div class="ll-batch-row-body">
       ${renderImagePreview(item)}
       ${renderRiskDetail(item.result)}
-      ${renderDecisionUI(item, idx)}
+      ${isSingle ? '' : renderDecisionUI(item, idx)}
     </div>`;
 
   if (isSingle) {
-    // Nothing else to compare against — always shown open, no collapse header.
+    // Nothing else to compare against — always shown open, no collapse header,
+    // and no per-item decision UI (action buttons are the global ones at the bottom).
     return `<div class="ll-batch-row" data-row-index="${idx}">${bodyHtml}</div>`;
   }
 
@@ -394,8 +395,9 @@ function renderBatchOverlay() {
   if (!batch) return;
 
   const sr = getOverlayShadow();
-  const decided = allRiskyDecided(batch.items);
   const isSingle = batch.items.length === 1;
+  // Single image needs no per-item decision step — the global buttons ARE the decision.
+  const decided = isSingle ? true : allRiskyDecided(batch.items);
   const rowsHtml = batch.items.map((item, idx) => renderBatchRow(item, idx, isSingle)).join('');
   const skippedNote = batch.skippedCount > 0
     ? `<div class="ll-batch-note">Only the first ${batch.items.length} images were scanned — ${batch.skippedCount} additional image(s) will be uploaded without analysis (max ${MAX_BATCH_FILES} per batch).</div>`
@@ -414,7 +416,7 @@ function renderBatchOverlay() {
         <div class="ll-batch-list">${rowsHtml}</div>
         <div class="ll-buttons">
           <button class="ll-btn ll-btn-cancel" data-batch-action="cancel-all">${isSingle ? 'Cancel Upload' : 'Cancel All'}</button>
-          <button class="ll-btn ll-btn-primary" data-batch-action="continue" ${decided ? '' : 'disabled'}>Continue Upload</button>
+          <button class="ll-btn ll-btn-primary" data-batch-action="continue" ${decided ? '' : 'disabled'}>${isSingle && batch.items[0]?.riskLevel !== 'low' ? 'Upload Anyway' : 'Continue Upload'}</button>
         </div>
         ${decided ? '' : '<div class="ll-batch-hint">Decide on every flagged image to continue</div>'}
       </div>
@@ -483,8 +485,13 @@ function wireBatchOverlay(sr, batch) {
   });
 
   sr.querySelector('[data-batch-action="continue"]')?.addEventListener('click', () => {
-    if (!allRiskyDecided(batch.items)) return;
-    const finalFiles = buildFinalFileList(batch.originalOrder, batch.items);
+    const isSingle = batch.items.length === 1;
+    if (!isSingle && !allRiskyDecided(batch.items)) return;
+    // Single image: no per-item decision was required, just let the original
+    // selection through unchanged. Multi-image: rebuild from decisions.
+    const finalFiles = isSingle
+      ? batch.originalOrder
+      : buildFinalFileList(batch.originalOrder, batch.items);
     resumeFiles(batch.inputEl, finalFiles);
     closeOverlay();
   });

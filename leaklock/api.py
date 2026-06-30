@@ -18,6 +18,13 @@ from leaklock.pipeline import LeakLockPipeline
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
+# A request can't actually interrupt the underlying worker thread once started
+# (Python threads aren't preemptible), so this bounds how long the HTTP
+# response waits, not how long the model computation itself runs. It exists
+# so an abandoned request (closed tab) or a pathologically slow image
+# produces a clean error instead of the client hanging indefinitely.
+ANALYSIS_TIMEOUT_SECONDS = 60.0
+
 _pipeline: LeakLockPipeline | None = None
 _pipeline_config: PipelineConfig | None = None
 # Serializes access to the shared pipeline's model objects (YOLO, OCR engines,
@@ -204,9 +211,19 @@ async def analyze_image(file: UploadFile = File(...)):
         tmp_path = tmp.name
 
     try:
-        result = await asyncio.get_event_loop().run_in_executor(
-            None, _run_pipeline_locked, tmp_path
-        )
+        try:
+            result = await asyncio.wait_for(
+                asyncio.get_event_loop().run_in_executor(None, _run_pipeline_locked, tmp_path),
+                timeout=ANALYSIS_TIMEOUT_SECONDS,
+            )
+        except asyncio.TimeoutError as exc:
+            raise HTTPException(
+                status_code=504,
+                detail=(
+                    f"Analysis did not complete within {ANALYSIS_TIMEOUT_SECONDS:.0f}s. "
+                    "The image may be unusually large or complex — try again or use a smaller image."
+                ),
+            ) from exc
 
         risk_score = result.overall_risk_percent
         detections = [
@@ -231,6 +248,8 @@ async def analyze_image(file: UploadFile = File(...)):
             "model": _model_metadata(),
             "runtime": _runtime_metadata(),
         }
+    except HTTPException:
+        raise
     except Exception as exc:
         raise HTTPException(status_code=500, detail=str(exc)) from exc
     finally:

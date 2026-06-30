@@ -6,6 +6,7 @@ import importlib.util
 import os
 import sys
 import tempfile
+import threading
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -19,6 +20,11 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 
 _pipeline: LeakLockPipeline | None = None
 _pipeline_config: PipelineConfig | None = None
+# Serializes access to the shared pipeline's model objects (YOLO, OCR engines,
+# age estimators, zero-shot classifier). None of these are documented as safe
+# for concurrent inference calls on the same instance from multiple threads,
+# so concurrent requests queue here instead of racing on shared model state.
+_pipeline_lock = threading.Lock()
 
 
 def _get_pipeline_config() -> PipelineConfig:
@@ -35,6 +41,13 @@ def _get_pipeline() -> LeakLockPipeline:
     if _pipeline is None:
         _pipeline = LeakLockPipeline(config=_get_pipeline_config())
     return _pipeline
+
+
+def _run_pipeline_locked(image_path: str):
+    """Runs inference under _pipeline_lock. Called via run_in_executor, so the
+    lock-wait happens on a worker thread and never blocks the event loop."""
+    with _pipeline_lock:
+        return _get_pipeline().analyze_image(image_path)
 
 
 def _model_metadata() -> dict[str, object]:
@@ -192,7 +205,7 @@ async def analyze_image(file: UploadFile = File(...)):
 
     try:
         result = await asyncio.get_event_loop().run_in_executor(
-            None, _get_pipeline().analyze_image, tmp_path
+            None, _run_pipeline_locked, tmp_path
         )
 
         risk_score = result.overall_risk_percent

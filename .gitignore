@@ -1,3 +1,6 @@
+__pycache__/
+*.pyc
+
 # datasets
 id-card-segmentation-2/
 id-card-segmentation-5/

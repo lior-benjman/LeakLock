@@ -10,7 +10,7 @@ from .layers.ocr import OcrExtractionLayer
 from .layers.ocr_risk import OcrRiskEvaluationLayer
 from .layers.routing import DetectionRouter
 from .layers.unsupported import UnsupportedDetectionLayer
-from .models import DetectionAnalysis, ImageAnalysisResult
+from .models import BoundingBox, Detection, DetectionAnalysis, ImageAnalysisResult, OcrExtraction
 
 
 class LeakLockPipeline:
@@ -56,3 +56,40 @@ class LeakLockPipeline:
             overall_risk_percent=overall_risk,
             analyses=analyses,
         )
+
+    def warm_up(self) -> None:
+        """Force every layer's underlying ML model to load against a throwaway
+        image, so the first real request doesn't pay model-loading latency."""
+        import tempfile
+
+        try:
+            from PIL import Image
+        except ImportError:
+            return
+
+        with tempfile.NamedTemporaryFile(suffix=".jpg", delete=False) as tmp:
+            Image.new("RGB", (64, 64), color=(128, 128, 128)).save(tmp.name)
+            dummy_path = Path(tmp.name)
+
+        try:
+            self._detection_layer.detect(dummy_path)  # loads YOLO weights
+
+            dummy_box = BoundingBox(x1=0, y1=0, x2=64, y2=64)
+            self._ocr_layer.extract(
+                image_path=dummy_path,
+                detection=Detection(class_id=1, class_name="document", confidence=1.0, box=dummy_box),
+            )  # loads the TrOCR/RapidOCR/EasyOCR/Tesseract chain
+            self._face_layer.evaluate(
+                image_path=dummy_path,
+                detection=Detection(class_id=2, class_name="face", confidence=1.0, box=dummy_box),
+            )  # loads the age-estimator chain
+            self._ocr_risk_layer.evaluate(
+                routed_from_class="document",
+                extraction=OcrExtraction(text="warm up", provider="warmup"),
+            )  # loads the zero-shot document classifier
+        except Exception:
+            # Warm-up is best-effort: a failure here just defers the cost
+            # to whichever real request first exercises that code path.
+            pass
+        finally:
+            dummy_path.unlink(missing_ok=True)

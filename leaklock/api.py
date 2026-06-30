@@ -1,6 +1,7 @@
 """LeakLock FastAPI backend — exposes the analysis pipeline for the Chrome extension."""
 from __future__ import annotations
 
+import asyncio
 import importlib.util
 import os
 import sys
@@ -63,7 +64,10 @@ def _runtime_metadata() -> dict[str, object]:
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    _get_pipeline()
+    pipeline = _get_pipeline()
+    # Force every layer's model to load now, off the event loop, so the
+    # first real request doesn't pay model-loading latency.
+    await asyncio.get_event_loop().run_in_executor(None, pipeline.warm_up)
     yield
 
 
@@ -187,7 +191,9 @@ async def analyze_image(file: UploadFile = File(...)):
         tmp_path = tmp.name
 
     try:
-        result = _get_pipeline().analyze_image(tmp_path)
+        result = await asyncio.get_event_loop().run_in_executor(
+            None, _get_pipeline().analyze_image, tmp_path
+        )
 
         risk_score = result.overall_risk_percent
         detections = [

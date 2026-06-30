@@ -58,8 +58,11 @@ class LeakLockPipeline:
         )
 
     def warm_up(self) -> None:
-        """Force every layer's underlying ML model to load against a throwaway
-        image, so the first real request doesn't pay model-loading latency."""
+        """Force each layer's eager model to load against a throwaway image,
+        so the first real request doesn't pay model-loading latency. OCR's
+        lazy fallback tiers (EasyOCR/Tesseract/TrOCR) are intentionally
+        excluded — they load on first actual need instead, see
+        OcrExtractionLayer."""
         import tempfile
 
         try:
@@ -75,10 +78,12 @@ class LeakLockPipeline:
             self._detection_layer.detect(dummy_path)  # loads YOLO weights
 
             dummy_box = BoundingBox(x1=0, y1=0, x2=64, y2=64)
-            self._ocr_layer.extract(
-                image_path=dummy_path,
-                detection=Detection(class_id=1, class_name="document", confidence=1.0, box=dummy_box),
-            )  # loads the TrOCR/RapidOCR/EasyOCR/Tesseract chain
+            # Loads only the eager (RapidOCR) tier. Deliberately not calling
+            # .extract() here: a textless dummy image would never cross the
+            # "good enough" score, so FallbackOcrProvider would escalate
+            # through every lazy tier (EasyOCR/Tesseract/TrOCR) and force-load
+            # all of them anyway, defeating the point of making them lazy.
+            self._ocr_layer.warm_up()
             self._face_layer.evaluate(
                 image_path=dummy_path,
                 detection=Detection(class_id=2, class_name="face", confidence=1.0, box=dummy_box),

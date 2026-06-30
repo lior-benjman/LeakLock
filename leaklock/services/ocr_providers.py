@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import re
 from pathlib import Path
-from typing import Any, Protocol
+from typing import Any, Callable, Protocol
 
 from ..models import OcrExtraction
 
@@ -424,6 +424,37 @@ class TesseractOcrProvider:
                 else "Tesseract ran but found no text in any tested image variant"
             ),
         )
+
+
+class LazyOcrProvider:
+    """Wraps a provider constructor so the underlying model only loads on
+    first actual use instead of at startup. The construction result (success
+    or failure) is cached after the first attempt, so repeated documents
+    reuse the already-loaded model instead of paying load cost again, and a
+    genuinely-missing dependency isn't retried on every request.
+    """
+
+    def __init__(self, name: str, factory: Callable[[], OcrProvider]) -> None:
+        self._name = name
+        self._factory = factory
+        self._provider: OcrProvider | None = None
+        self._init_error: str | None = None
+
+    def extract_text(self, image_path: Path) -> OcrExtraction:
+        if self._provider is None and self._init_error is None:
+            try:
+                self._provider = self._factory()
+            except RuntimeError as exc:
+                self._init_error = str(exc)
+
+        if self._provider is None:
+            return OcrExtraction(
+                text="",
+                provider=self._name,
+                details=f"{self._name} unavailable: {self._init_error}",
+            )
+
+        return self._provider.extract_text(image_path)
 
 
 class FallbackOcrProvider:

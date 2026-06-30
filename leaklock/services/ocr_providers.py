@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import re
+import time
 from pathlib import Path
 from typing import Any, Callable, Protocol
 
@@ -82,7 +83,7 @@ class TrOcrProvider:
             return slices
 
         # Coarse bands preserve broad context.
-        bands = 4
+        bands = 2
         band_height = max(1, height // bands)
         overlap = max(8, band_height // 8)
 
@@ -97,7 +98,7 @@ class TrOcrProvider:
         fine_window = max(48, min(120, height // 10))
         fine_step = max(24, fine_window // 2)
         slice_index = 1
-        max_fine_slices = 8
+        max_fine_slices = 3
         for top in range(0, max(1, height - fine_window + 1), fine_step):
             if slice_index > max_fine_slices:
                 break
@@ -432,13 +433,19 @@ class LazyOcrProvider:
     or failure) is cached after the first attempt, so repeated documents
     reuse the already-loaded model instead of paying load cost again, and a
     genuinely-missing dependency isn't retried on every request.
+
+    min_input_score: if set, FallbackOcrProvider will skip this provider
+    when the best score from all preceding providers is below this value.
+    Use it to gate expensive last-resort providers (e.g. TrOCR) so they
+    don't run when the image is clearly unreadable by all cheaper engines.
     """
 
-    def __init__(self, name: str, factory: Callable[[], OcrProvider]) -> None:
+    def __init__(self, name: str, factory: Callable[[], OcrProvider], min_input_score: int = 0) -> None:
         self._name = name
         self._factory = factory
         self._provider: OcrProvider | None = None
         self._init_error: str | None = None
+        self.min_input_score = min_input_score
 
     def extract_text(self, image_path: Path) -> OcrExtraction:
         if self._provider is None and self._init_error is None:
@@ -474,8 +481,24 @@ class FallbackOcrProvider:
         attempts: list[str] = []
 
         for provider in self._providers:
+            name = getattr(provider, "_name", provider.__class__.__name__)
+            min_input = getattr(provider, "min_input_score", 0)
+            if min_input > 0 and best_score < min_input:
+                print(
+                    f"[LeakLock][OCR] skipping {name} — best score so far {best_score} < required {min_input}",
+                    flush=True,
+                )
+                continue
+            print(f"[LeakLock][OCR] trying {name} ...", flush=True)
+            t0 = time.perf_counter()
             extraction = provider.extract_text(image_path)
+            elapsed = time.perf_counter() - t0
             score = _extraction_quality_score(extraction.text)
+            print(
+                f"[LeakLock][OCR] {extraction.provider} done in {elapsed:.2f}s — "
+                f"score={score} (need {GOOD_ENOUGH_SCORE} to stop)",
+                flush=True,
+            )
 
             if score > best_score:
                 best_score = score

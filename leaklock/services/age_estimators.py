@@ -52,13 +52,20 @@ class FallbackAgeEstimator:
         empty_estimates: list[AgeEstimate] = []
 
         for estimator in self._estimators:
+            name = estimator.__class__.__name__
+            print(f"[LeakLock][age] trying {name} ...", flush=True)
+            t0 = __import__("time").perf_counter()
             try:
                 estimate = estimator.estimate(image_path=image_path, detection=detection)
             except Exception as exc:  # noqa: BLE001 - model runtimes raise mixed exception types.
+                print(f"[LeakLock][age] {name} failed in {__import__('time').perf_counter() - t0:.2f}s — {exc.__class__.__name__}: {exc}", flush=True)
                 failures.append(
-                    f"{estimator.__class__.__name__}: {exc.__class__.__name__}: {exc}"
+                    f"{name}: {exc.__class__.__name__}: {exc}"
                 )
                 continue
+
+            elapsed = __import__("time").perf_counter() - t0
+            print(f"[LeakLock][age] {name} done in {elapsed:.2f}s — age={estimate.age_years}", flush=True)
 
             if estimate.age_years is not None:
                 return _with_fallback_details(estimate, failures)

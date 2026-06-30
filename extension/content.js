@@ -121,6 +121,7 @@ const BATCH_CSS = `
     padding:8px 12px;margin-bottom:14px;color:#1e40af;font-size:12px;line-height:1.5;
   }
   .ll-batch-list{display:flex;flex-direction:column;gap:8px;margin-bottom:16px}
+  .ll-card-wide .ll-buttons{position:sticky;bottom:-28px;background:#fff;padding-top:12px;padding-bottom:28px;border-top:1px solid #e2e8f0;margin-top:4px}
   .ll-batch-row{border:1px solid #e2e8f0;border-radius:12px;overflow:hidden}
   .ll-batch-row-header{
     width:100%;display:flex;align-items:center;justify-content:space-between;gap:10px;
@@ -421,7 +422,7 @@ function renderBatchOverlay() {
         <div class="ll-batch-list">${rowsHtml}</div>
         <div class="ll-buttons">
           <button class="ll-btn ll-btn-cancel" data-batch-action="cancel-all">${isSingle ? 'Cancel Upload' : 'Cancel All'}</button>
-          <button class="ll-btn ll-btn-primary" data-batch-action="continue" ${decided ? '' : 'disabled'}>${isSingle && batch.items[0]?.riskLevel !== 'low' ? 'Upload Anyway' : 'Continue Upload'}</button>
+          <button class="ll-btn ll-btn-primary" data-batch-action="continue" ${decided ? '' : 'disabled'}>${isSingle && batch.items[0]?.riskLevel !== 'low' ? (batch.items[0]?.blurPreviewOn ? 'Upload' : 'Upload Anyway') : 'Continue Upload'}</button>
         </div>
         ${decided ? '' : '<div class="ll-batch-hint">Decide on every flagged image to continue</div>'}
       </div>

@@ -45,7 +45,7 @@ class OcrExtractionLayer:
 
         providers.append(LazyOcrProvider("easyocr", EasyOcrProvider))
         providers.append(LazyOcrProvider("tesseract", TesseractOcrProvider))
-        providers.append(LazyOcrProvider("trocr", TrOcrProvider))
+        providers.append(LazyOcrProvider("trocr", TrOcrProvider, min_input_score=20))
 
         return FallbackOcrProvider(providers)
 

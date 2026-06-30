@@ -333,6 +333,18 @@ async function analyzeFile(file, inputEl) {
   }
 }
 
+// ── File type detection ────────────────────────────────────────────────────
+const IMAGE_EXTENSION_RE = /\.(jpe?g|png|webp|gif|bmp|tiff?|heic|heif|avif)$/i;
+
+function isImageFile(file) {
+  if (!file) return false;
+  if (file.type) return file.type.startsWith('image/');
+  // Some OS/browser combinations report an empty MIME type for legitimate
+  // images — fall back to sniffing the filename extension instead of
+  // silently letting the file skip analysis.
+  return IMAGE_EXTENSION_RE.test(file.name || '');
+}
+
 // ── File input event handler ───────────────────────────────────────────────
 function handleFileChange(event) {
   if (event._llResumed) return; // skip events we dispatched ourselves on proceed
@@ -341,7 +353,7 @@ function handleFileChange(event) {
 
   const input = event.target;
   const file = input.files?.[0];
-  if (!file || !file.type.startsWith('image/')) return;
+  if (!isImageFile(file)) return;
 
   // Block the host page from processing this file selection until the user decides
   event.stopImmediatePropagation();

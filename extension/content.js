@@ -326,7 +326,7 @@ function decisionLabel(item) {
   return '';
 }
 
-function renderDecisionUI(item, idx) {
+function renderDecisionUI(item, idx, isSingle = false) {
   if (item.riskLevel === 'low') return '';
 
   if (item.blurPending) {
@@ -337,16 +337,21 @@ function renderDecisionUI(item, idx) {
     ? `<div class="ll-blur-error">Blur failed: ${escapeHtml(item.blurError)}. You can still upload as-is or skip this image.</div>`
     : '';
 
+  // Single image: show the blur toggle (so the user can preview blurred vs original)
+  // but omit the per-item action buttons — the global Cancel/Upload Anyway serve that role.
+  const buttonsHtml = isSingle ? '' : `
+    <div class="ll-buttons">
+      <button class="ll-btn ll-btn-cancel" data-decision="exclude" data-row-index="${idx}">Don't Upload</button>
+      <button class="ll-btn ll-btn-primary" data-decision="upload" data-row-index="${idx}">Upload This Image</button>
+    </div>`;
+
   return `
     ${errorHtml}
     <label class="ll-blur-toggle">
       <input type="checkbox" data-blur-toggle="${idx}" ${item.blurPreviewOn ? 'checked' : ''} />
       <span>Blur sensitive areas</span>
     </label>
-    <div class="ll-buttons">
-      <button class="ll-btn ll-btn-cancel" data-decision="exclude" data-row-index="${idx}">Don't Upload</button>
-      <button class="ll-btn ll-btn-primary" data-decision="upload" data-row-index="${idx}">Upload This Image</button>
-    </div>`;
+    ${buttonsHtml}`;
 }
 
 // Pure: whether every risky (non-low) item has a decision made.
@@ -359,7 +364,7 @@ function renderBatchRow(item, idx, isSingle) {
     <div class="ll-batch-row-body">
       ${renderImagePreview(item)}
       ${renderRiskDetail(item.result)}
-      ${isSingle ? '' : renderDecisionUI(item, idx)}
+      ${renderDecisionUI(item, idx, isSingle)}
     </div>`;
 
   if (isSingle) {
@@ -487,11 +492,17 @@ function wireBatchOverlay(sr, batch) {
   sr.querySelector('[data-batch-action="continue"]')?.addEventListener('click', () => {
     const isSingle = batch.items.length === 1;
     if (!isSingle && !allRiskyDecided(batch.items)) return;
-    // Single image: no per-item decision was required, just let the original
-    // selection through unchanged. Multi-image: rebuild from decisions.
-    const finalFiles = isSingle
-      ? batch.originalOrder
-      : buildFinalFileList(batch.originalOrder, batch.items);
+    // Single image: respect the blur toggle state when building the file list,
+    // but no per-item decision was required.
+    // Multi-image: rebuild from per-item decisions as usual.
+    let finalFiles;
+    if (isSingle) {
+      const item = batch.items[0];
+      const file = item.blurPreviewOn && item.blurredFile ? item.blurredFile : item.file;
+      finalFiles = batch.originalOrder.map((f) => (f === item.file ? file : f));
+    } else {
+      finalFiles = buildFinalFileList(batch.originalOrder, batch.items);
+    }
     resumeFiles(batch.inputEl, finalFiles);
     closeOverlay();
   });

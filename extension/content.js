@@ -6,7 +6,7 @@ const MAX_BATCH_FILES = 10;
 
 let leaklockEnabled = false;
 let isAnalyzing = false;
-let currentBatch = null; // set while a multi-image accordion overlay is open
+let currentBatch = null; // set while the results overlay (single image or batch) is open
 
 // ── State init ─────────────────────────────────────────────────────────────
 chrome.storage.local.get(['leaklockEnabled'], (data) => {
@@ -39,6 +39,13 @@ function closeOverlay() {
   const sr = getOverlayShadow();
   sr.innerHTML = '';
   isAnalyzing = false;
+  if (currentBatch) {
+    for (const item of currentBatch.items) {
+      if (item.previewUrl) URL.revokeObjectURL(item.previewUrl);
+      if (item.blurredPreviewUrl) URL.revokeObjectURL(item.blurredPreviewUrl);
+    }
+  }
+  currentBatch = null;
 }
 
 // ── Shared CSS ─────────────────────────────────────────────────────────────
@@ -96,8 +103,6 @@ const BASE_CSS = `
   .ll-btn-primary{background:#3b82f6;color:#fff}
   .ll-btn-primary:hover{opacity:.88}
   .ll-btn-primary:disabled{background:#cbd5e1;cursor:not-allowed;opacity:1}
-  .ll-btn-blur{background:#7c3aed;color:#fff}
-  .ll-btn-blur:hover{opacity:.88}
   .ll-logo-center{font-size:30px;margin-bottom:14px;text-align:center}
   .ll-title-center{font-size:18px;font-weight:700;color:#0f172a;text-align:center;margin-bottom:18px}
   .ll-spinner{
@@ -126,11 +131,22 @@ const BATCH_CSS = `
   .ll-chevron{color:#94a3b8;font-size:12px}
   .ll-batch-row-body{padding:0 14px 14px}
   .ll-batch-hint{margin-top:10px;font-size:12px;color:#b91c1c;text-align:center}
-  .ll-batch-blur-status{font-size:12px;color:#7c3aed;margin-top:8px;text-align:center}
-  .ll-batch-blur-error{
+  .ll-blur-status{font-size:12px;color:#7c3aed;margin:8px 0;text-align:center}
+  .ll-blur-error{
     background:#fef2f2;border:1px solid #fecaca;border-radius:8px;
-    padding:8px 10px;margin-top:8px;color:#b91c1c;font-size:12px;line-height:1.5;
+    padding:8px 10px;margin:8px 0;color:#b91c1c;font-size:12px;line-height:1.5;
   }
+  .ll-preview-wrap{
+    background:#f1f5f9;border-radius:10px;overflow:hidden;
+    margin-bottom:14px;display:flex;align-items:center;justify-content:center;
+    max-height:260px;
+  }
+  .ll-preview-img{display:block;max-width:100%;max-height:260px;object-fit:contain}
+  .ll-blur-toggle{
+    display:flex;align-items:center;gap:8px;margin:4px 0 6px;
+    font-size:13px;color:#334155;cursor:pointer;user-select:none;
+  }
+  .ll-blur-toggle input{width:16px;height:16px;cursor:pointer}
 `;
 
 // ── "Analyzing…" state ─────────────────────────────────────────────────────
@@ -247,7 +263,7 @@ function renderDetectionCards(payload) {
 }
 
 // Pure string-builder: the score bar / explanations / detections block shared
-// by both the single-image card and each accordion row's expanded body.
+// by every row's expanded body (single image and each batch item alike).
 function renderRiskDetail(result) {
   const { risk_score = 0, risk_level, explanations = [] } = result || {};
   const c = RISK_COLORS[risk_level] || RISK_COLORS.medium;
@@ -271,42 +287,10 @@ function renderRiskDetail(result) {
   `;
 }
 
-// ── Single-image result overlay (used when exactly one image is analyzed) ──
-function showResult(result, onProceed, onCancel) {
-  const riskLevel = result?.risk_level;
-  const buttonsHtml = riskLevel === 'low'
-    ? `<button class="ll-btn ll-btn-primary" data-action="proceed">Continue Upload</button>`
-    : `
-      <button class="ll-btn ll-btn-cancel"  data-action="cancel">Cancel Upload</button>
-      <button class="ll-btn ll-btn-primary" data-action="proceed">Upload Anyway</button>
-    `;
-
-  const sr = getOverlayShadow();
-  sr.innerHTML = `
-    <style>${BASE_CSS}</style>
-    <div class="ll-overlay">
-      <div class="ll-card ll-card-wide">
-        <div class="ll-header">
-          <span class="ll-logo">🔒</span>
-          <span class="ll-title">LeakLock Analysis</span>
-        </div>
-        ${renderRiskDetail(result)}
-        <div class="ll-buttons">${buttonsHtml}</div>
-      </div>
-    </div>`;
-
-  isAnalyzing = false;
-
-  sr.querySelectorAll('.ll-btn').forEach((btn) => {
-    btn.addEventListener('click', () => {
-      if (btn.dataset.action === 'cancel') {
-        onCancel();
-      } else {
-        onProceed();
-      }
-      closeOverlay();
-    });
-  });
+function renderImagePreview(item) {
+  const src = item.blurPreviewOn && item.blurredPreviewUrl ? item.blurredPreviewUrl : item.previewUrl;
+  if (!src) return '';
+  return `<div class="ll-preview-wrap"><img class="ll-preview-img" src="${src}" alt="preview" /></div>`;
 }
 
 // ── Error / backend unavailable ────────────────────────────────────────────
@@ -335,41 +319,62 @@ function showError(onProceed) {
   isAnalyzing = false;
 }
 
-// ── Batch (multi-image) accordion overlay ──────────────────────────────────
-function decisionLabel(decision) {
-  return { upload: 'Upload As-Is', blur: 'Blurred', exclude: "Won't Upload" }[decision] || '';
+// ── Results overlay — used for both a single image and a multi-image batch ─
+function decisionLabel(item) {
+  if (item.decision === 'exclude') return "Won't Upload";
+  if (item.decision === 'upload') return item.usedBlur ? 'Blurred' : 'Upload As-Is';
+  return '';
 }
 
-function renderDecisionButtons(item, idx) {
+function renderDecisionUI(item, idx) {
+  if (item.riskLevel === 'low') return '';
+
   if (item.blurPending) {
-    return `<div class="ll-batch-blur-status">Blurring…</div>`;
+    return `<div class="ll-blur-status">Blurring…</div>`;
   }
+
   const errorHtml = item.blurError
-    ? `<div class="ll-batch-blur-error">Blur failed: ${escapeHtml(item.blurError)}. Choose an option below.</div>`
+    ? `<div class="ll-blur-error">Blur failed: ${escapeHtml(item.blurError)}. You can still upload as-is or skip this image.</div>`
     : '';
+
   return `
     ${errorHtml}
+    <label class="ll-blur-toggle">
+      <input type="checkbox" data-blur-toggle="${idx}" ${item.blurPreviewOn ? 'checked' : ''} />
+      <span>Blur sensitive areas</span>
+    </label>
     <div class="ll-buttons">
       <button class="ll-btn ll-btn-cancel" data-decision="exclude" data-row-index="${idx}">Don't Upload</button>
-      <button class="ll-btn ll-btn-blur" data-decision="blur" data-row-index="${idx}">Blur &amp; Upload</button>
-      <button class="ll-btn ll-btn-primary" data-decision="upload" data-row-index="${idx}">Upload As-Is</button>
+      <button class="ll-btn ll-btn-primary" data-decision="upload" data-row-index="${idx}">Upload This Image</button>
     </div>`;
 }
 
-function renderBatchRow(item, idx) {
+// Pure: whether every risky (non-low) item has a decision made.
+function allRiskyDecided(items) {
+  return items.every((item) => item.riskLevel === 'low' || !!item.decision);
+}
+
+function renderBatchRow(item, idx, isSingle) {
+  const bodyHtml = `
+    <div class="ll-batch-row-body">
+      ${renderImagePreview(item)}
+      ${renderRiskDetail(item.result)}
+      ${renderDecisionUI(item, idx)}
+    </div>`;
+
+  if (isSingle) {
+    // Nothing else to compare against — always shown open, no collapse header.
+    return `<div class="ll-batch-row" data-row-index="${idx}">${bodyHtml}</div>`;
+  }
+
   const isLow = item.riskLevel === 'low';
   const c = RISK_COLORS[item.riskLevel] || RISK_COLORS.medium;
   const label = RISK_LABELS[item.riskLevel] || String(item.riskLevel || '').toUpperCase();
-
   const headerRight = isLow
     ? `<span class="ll-badge" style="background:${c.badge}">${label}</span>`
     : item.decision
-      ? `<span class="ll-badge" style="background:${c.badge}">${label} · ${escapeHtml(decisionLabel(item.decision))}</span>`
+      ? `<span class="ll-badge" style="background:${c.badge}">${label} · ${escapeHtml(decisionLabel(item))}</span>`
       : `<span class="ll-badge" style="background:${c.badge}">${label} · Needs decision</span>`;
-
-  const bodyHtml = item.expanded
-    ? `<div class="ll-batch-row-body">${renderRiskDetail(item.result)}${isLow ? '' : renderDecisionButtons(item, idx)}</div>`
-    : '';
 
   return `
     <div class="ll-batch-row" data-row-index="${idx}">
@@ -380,13 +385,8 @@ function renderBatchRow(item, idx) {
           <span class="ll-chevron">${item.expanded ? '▾' : '▸'}</span>
         </span>
       </button>
-      ${bodyHtml}
+      ${item.expanded ? bodyHtml : ''}
     </div>`;
-}
-
-// Pure: whether every risky (non-low) item has a decision made.
-function allRiskyDecided(items) {
-  return items.every((item) => item.riskLevel === 'low' || !!item.decision);
 }
 
 function renderBatchOverlay() {
@@ -395,10 +395,12 @@ function renderBatchOverlay() {
 
   const sr = getOverlayShadow();
   const decided = allRiskyDecided(batch.items);
-  const rowsHtml = batch.items.map((item, idx) => renderBatchRow(item, idx)).join('');
+  const isSingle = batch.items.length === 1;
+  const rowsHtml = batch.items.map((item, idx) => renderBatchRow(item, idx, isSingle)).join('');
   const skippedNote = batch.skippedCount > 0
     ? `<div class="ll-batch-note">Only the first ${batch.items.length} images were scanned — ${batch.skippedCount} additional image(s) will be uploaded without analysis (max ${MAX_BATCH_FILES} per batch).</div>`
     : '';
+  const titleText = isSingle ? 'LeakLock Analysis' : `LeakLock — ${batch.items.length} images analyzed`;
 
   sr.innerHTML = `
     <style>${BASE_CSS}${BATCH_CSS}</style>
@@ -406,12 +408,12 @@ function renderBatchOverlay() {
       <div class="ll-card ll-card-wide">
         <div class="ll-header">
           <span class="ll-logo">🔒</span>
-          <span class="ll-title">LeakLock — ${batch.items.length} image${batch.items.length === 1 ? '' : 's'} analyzed</span>
+          <span class="ll-title">${titleText}</span>
         </div>
         ${skippedNote}
         <div class="ll-batch-list">${rowsHtml}</div>
         <div class="ll-buttons">
-          <button class="ll-btn ll-btn-cancel" data-batch-action="cancel-all">Cancel All</button>
+          <button class="ll-btn ll-btn-cancel" data-batch-action="cancel-all">${isSingle ? 'Cancel Upload' : 'Cancel All'}</button>
           <button class="ll-btn ll-btn-primary" data-batch-action="continue" ${decided ? '' : 'disabled'}>Continue Upload</button>
         </div>
         ${decided ? '' : '<div class="ll-batch-hint">Decide on every flagged image to continue</div>'}
@@ -430,30 +432,46 @@ function wireBatchOverlay(sr, batch) {
     });
   });
 
-  sr.querySelectorAll('[data-decision]').forEach((btn) => {
-    btn.addEventListener('click', async () => {
-      const idx = Number(btn.dataset.rowIndex);
+  sr.querySelectorAll('[data-blur-toggle]').forEach((checkbox) => {
+    checkbox.addEventListener('change', async () => {
+      const idx = Number(checkbox.dataset.blurToggle);
       const item = batch.items[idx];
-      const decision = btn.dataset.decision;
 
-      if (decision === 'blur') {
-        item.blurPending = true;
-        item.blurError = null;
+      if (!checkbox.checked) {
+        item.blurPreviewOn = false;
         renderBatchOverlay();
-        try {
-          item.blurredFile = await blurImage(item.file, item.result);
-          item.decision = 'blur';
-        } catch (err) {
-          item.blurError = err?.message || 'Unknown error';
-          item.decision = null; // do not silently fall back — force an explicit re-decision
-        } finally {
-          item.blurPending = false;
-          renderBatchOverlay();
-        }
         return;
       }
 
-      item.decision = decision; // 'upload' or 'exclude'
+      if (item.blurredPreviewUrl) {
+        item.blurPreviewOn = true; // already computed earlier — just switch the preview back
+        renderBatchOverlay();
+        return;
+      }
+
+      item.blurPending = true;
+      item.blurError = null;
+      renderBatchOverlay();
+      try {
+        item.blurredFile = await blurImage(item.file, item.result);
+        item.blurredPreviewUrl = URL.createObjectURL(item.blurredFile);
+        item.blurPreviewOn = true;
+      } catch (err) {
+        item.blurError = err?.message || 'Unknown error';
+        item.blurPreviewOn = false; // do not silently show/use an unblurred image instead
+      } finally {
+        item.blurPending = false;
+        renderBatchOverlay();
+      }
+    });
+  });
+
+  sr.querySelectorAll('[data-decision]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const idx = Number(btn.dataset.rowIndex);
+      const item = batch.items[idx];
+      item.decision = btn.dataset.decision; // 'upload' or 'exclude'
+      item.usedBlur = item.decision === 'upload' && item.blurPreviewOn;
       item.expanded = false;
       renderBatchOverlay();
     });
@@ -461,7 +479,6 @@ function wireBatchOverlay(sr, batch) {
 
   sr.querySelector('[data-batch-action="cancel-all"]')?.addEventListener('click', () => {
     try { if (batch.inputEl) batch.inputEl.value = ''; } catch (_) {}
-    currentBatch = null;
     closeOverlay();
   });
 
@@ -469,14 +486,14 @@ function wireBatchOverlay(sr, batch) {
     if (!allRiskyDecided(batch.items)) return;
     const finalFiles = buildFinalFileList(batch.originalOrder, batch.items);
     resumeFiles(batch.inputEl, finalFiles);
-    currentBatch = null;
     closeOverlay();
   });
 }
 
 // Pure: reconstructs the final ordered file list from the original selection
-// and each analyzed item's decision. Non-analyzed files (non-images, or
-// images beyond the MAX_BATCH_FILES cap) pass through unmodified.
+// and each analyzed item's decision (+ whether blur was on when decided).
+// Non-analyzed files (non-images, or images beyond the MAX_BATCH_FILES cap)
+// pass through unmodified.
 function buildFinalFileList(originalOrder, items) {
   const byFile = new Map(items.map((item) => [item.file, item]));
   const finalFiles = [];
@@ -488,9 +505,7 @@ function buildFinalFileList(originalOrder, items) {
       continue;
     }
     if (item.riskLevel === 'low' || item.decision === 'upload') {
-      finalFiles.push(item.file);
-    } else if (item.decision === 'blur' && item.blurredFile) {
-      finalFiles.push(item.blurredFile);
+      finalFiles.push(item.usedBlur && item.blurredFile ? item.blurredFile : item.file);
     }
     // decision === 'exclude' -> omit entirely
   }
@@ -606,10 +621,14 @@ async function analyzeBatch(imageFiles, originalOrder, inputEl, skippedCount) {
     result: null,
     riskLevel: null,
     decision: null,
+    usedBlur: false,
     blurredFile: null,
+    blurPreviewOn: false,
     blurPending: false,
     blurError: null,
     expanded: false,
+    previewUrl: URL.createObjectURL(file),
+    blurredPreviewUrl: null,
   }));
 
   for (let i = 0; i < items.length; i++) {
@@ -620,6 +639,7 @@ async function analyzeBatch(imageFiles, originalOrder, inputEl, skippedCount) {
     } catch (err) {
       console.warn('[LeakLock] Backend error:', err.message);
       isAnalyzing = false;
+      for (const item of items) URL.revokeObjectURL(item.previewUrl);
       // Fail open for the whole batch: the backend is down for every file
       // equally, so resume the original selection unmodified.
       showError(() => resumeFiles(inputEl, originalOrder));
@@ -628,17 +648,9 @@ async function analyzeBatch(imageFiles, originalOrder, inputEl, skippedCount) {
   }
 
   isAnalyzing = false;
-
-  if (items.length === 1) {
-    showResult(
-      items[0].result,
-      () => resumeFiles(inputEl, originalOrder), // single image: original selection passes through unchanged
-      () => { try { inputEl.value = ''; } catch (_) {} },
-    );
-    return;
-  }
-
-  items.forEach((item) => { item.expanded = item.riskLevel !== 'low'; });
+  // Multi-image rows start collapsed; a single image is always shown open
+  // since there's only one thing to look at.
+  items.forEach((item) => { item.expanded = false; });
   currentBatch = { inputEl, originalOrder, items, skippedCount };
   renderBatchOverlay();
 }

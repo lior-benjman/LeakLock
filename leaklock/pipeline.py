@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import time
 from pathlib import Path
 
 from .config import PipelineConfig
@@ -30,27 +31,46 @@ class LeakLockPipeline:
         image = Path(image_path).resolve()
         if not image.exists():
             raise FileNotFoundError(f"Input image was not found at: {image}")
+
+        total_start = time.perf_counter()
+        detect_start = time.perf_counter()
         detections = self._detection_layer.detect(image)
+        print(f"[LeakLock] {image.name}: YOLO detect found {len(detections)} object(s) in {time.perf_counter() - detect_start:.2f}s")
+
         analyses: list[DetectionAnalysis] = []
 
         for detection in detections:
             route = self._router.route(detection)
+            step_start = time.perf_counter()
+            extra_info = ""
+
             if route == "face_age_layer":
                 risk = self._face_layer.evaluate(image_path=image, detection=detection)
+                provider = (risk.evidence or {}).get("age_estimate", {}).get("provider")
+                if provider:
+                    extra_info = f", age_provider={provider}"
             elif route == "ocr_extraction_layer":
                 extraction = self._ocr_layer.extract(image_path=image, detection=detection)
                 risk = self._ocr_risk_layer.evaluate(
                     routed_from_class=detection.class_name,
                     extraction=extraction,
                 )
+                extra_info = f", ocr_provider={extraction.provider}"
             elif route == "license_plate_risk_layer":
                 risk = self._license_plate_layer.evaluate(detection)
             else:
                 risk = self._unsupported_layer.evaluate(detection)
 
+            elapsed = time.perf_counter() - step_start
+            print(
+                f"[LeakLock] {image.name}: {detection.class_name} -> {route} "
+                f"took {elapsed:.2f}s{extra_info}"
+            )
+
             analyses.append(DetectionAnalysis(detection=detection, route=route, risk=risk))
 
         overall_risk = max((item.risk.risk_percent for item in analyses), default=0)
+        print(f"[LeakLock] {image.name}: total analysis time {time.perf_counter() - total_start:.2f}s")
         return ImageAnalysisResult(
             image_path=image,
             overall_risk_percent=overall_risk,

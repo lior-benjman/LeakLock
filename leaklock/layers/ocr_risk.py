@@ -56,7 +56,11 @@ class OcrRiskEvaluationLayer:
 
         if self._config.enable_document_ml_risk:
             try:
+                import time as _time
+                print("[LeakLock][bart] running facebook/bart-large-mnli zero-shot classifier ...", flush=True)
+                _t0 = _time.perf_counter()
                 document_ml_analysis = evaluate_document_risk(extraction.text)
+                print(f"[LeakLock][bart] done in {_time.perf_counter() - _t0:.2f}s — doc_type={document_ml_analysis.get('document_type')}", flush=True)
                 ml_risk_percent = _clamp_percent(document_ml_analysis["risk"]["risk_percent"])
             except Exception as exc:  # noqa: BLE001 - keep OCR path stable if ML branch fails.
                 fallback_reason = f"{exc.__class__.__name__}: {exc}"

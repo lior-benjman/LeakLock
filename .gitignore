@@ -1,3 +1,7 @@
+__pycache__/
+*.pyc
+.venv/
+
 # datasets
 id-card-segmentation-2/
 id-card-segmentation-5/

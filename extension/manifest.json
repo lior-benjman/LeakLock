@@ -5,7 +5,6 @@
   "description": "Active image privacy protection — analyzes images before you upload them.",
   "permissions": ["storage", "tabs"],
   "host_permissions": [
-    "http://localhost:8000/*",
     "<all_urls>"
   ],
   "background": {

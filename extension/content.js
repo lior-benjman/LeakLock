@@ -320,10 +320,10 @@ function showError(onProceed) {
       <div class="ll-card" style="text-align:center">
         <div class="ll-title-center">🔒 LeakLock</div>
         <div class="ll-sub" style="margin-bottom:18px;line-height:1.5">
-          Backend unavailable — upload will proceed normally.<br><br>
-          Start the server with:<br>
-          <span style="font-family:monospace;background:#f1f5f9;border-radius:6px;padding:6px 10px;font-size:12px;color:#0f172a;display:inline-block;margin-top:6px">
-            uvicorn leaklock.api:app --port 8000
+          Backend unavailable - upload will proceed normally.<br><br>
+          Configured endpoint:<br>
+          <span style="font-family:monospace;background:#f1f5f9;border-radius:6px;padding:6px 10px;font-size:12px;color:#0f172a;display:inline-block;margin-top:6px;word-break:break-all">
+            ${API_URL}
           </span>
         </div>
         <button class="ll-btn ll-btn-primary" id="ll-err-close" style="width:100%">Close</button>

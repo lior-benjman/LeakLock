@@ -75,6 +75,10 @@ class OcrRiskEvaluationLayer:
                 + (ml_risk_percent * DOCUMENT_ML_WEIGHT)
             )
 
+        matched_features = rule_classification.get("matched_features", [])
+        if "credential" in matched_features:
+            blended_risk_percent = max(blended_risk_percent, rule_risk_percent)
+
         classification: dict[str, Any] = {
             **rule_classification,
             "risk_percent": blended_risk_percent,

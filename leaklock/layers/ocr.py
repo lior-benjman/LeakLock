@@ -64,3 +64,32 @@ class OcrExtractionLayer:
     def extract(self, image_path: Path, detection: Detection) -> OcrExtraction:
         with crop_detection_to_temp_file(image_path=image_path, detection=detection) as crop_path:
             return self._get_provider().extract_text(crop_path)
+
+
+class FastTextRegionOcrExtractionLayer(OcrExtractionLayer):
+    """OCR layer for text-region gate crops.
+
+    Text-region crops are already likely to contain text, so this keeps the
+    path fast by avoiding the heavyweight TrOCR/EasyOCR fallback chain.
+    """
+
+    def _default_provider(self) -> OcrProvider:
+        providers: list[OcrProvider] = []
+        errors: list[str] = []
+
+        try:
+            providers.append(RapidOcrProvider())
+        except RuntimeError as exc:
+            errors.append(f"RapidOCR unavailable: {exc}")
+
+        try:
+            providers.append(TesseractOcrProvider())
+        except RuntimeError as exc:
+            errors.append(f"Tesseract unavailable: {exc}")
+
+        if providers:
+            return FallbackOcrProvider(providers)
+
+        return UnavailableOcrProvider(
+            " | ".join(errors) if errors else "Fast text-region OCR provider is not configured yet"
+        )

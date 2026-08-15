@@ -213,18 +213,30 @@ class RapidOcrProvider:
                 details=f"RapidOCR could not run: {exc}",
             )
 
-        if isinstance(result, tuple):
+        if hasattr(result, "txts"):
+            text_parts = [
+                str(text_value).strip()
+                for text_value in getattr(result, "txts", [])
+                if text_value
+            ]
+        elif isinstance(result, tuple):
             detections = result[0]
+            text_parts = []
+            if detections:
+                for item in detections:
+                    if isinstance(item, (list, tuple)) and len(item) >= 2:
+                        text_value = item[1]
+                        if text_value:
+                            text_parts.append(str(text_value).strip())
         else:
             detections = result
-
-        text_parts: list[str] = []
-        if detections:
-            for item in detections:
-                if isinstance(item, (list, tuple)) and len(item) >= 2:
-                    text_value = item[1]
-                    if text_value:
-                        text_parts.append(str(text_value).strip())
+            text_parts = []
+            if detections:
+                for item in detections:
+                    if isinstance(item, (list, tuple)) and len(item) >= 2:
+                        text_value = item[1]
+                        if text_value:
+                            text_parts.append(str(text_value).strip())
 
         return OcrExtraction(
             text="\n".join(part for part in text_parts if part),

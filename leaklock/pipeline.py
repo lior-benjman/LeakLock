@@ -7,11 +7,12 @@ from .config import PipelineConfig
 from .layers.detection import YoloDetectionLayer
 from .layers.face_age import FaceAgeRiskLayer
 from .layers.license_plate import LicensePlateRiskLayer
-from .layers.ocr import OcrExtractionLayer
+from .layers.ocr import FastTextRegionOcrExtractionLayer, OcrExtractionLayer
 from .layers.ocr_risk import OcrRiskEvaluationLayer
 from .layers.routing import DetectionRouter
 from .layers.unsupported import UnsupportedDetectionLayer
 from .models import BoundingBox, Detection, DetectionAnalysis, ImageAnalysisResult, OcrExtraction
+from .services.text_region_gate import TextRegionGate
 
 
 class LeakLockPipeline:
@@ -23,9 +24,11 @@ class LeakLockPipeline:
         self._router = DetectionRouter(self._config)
         self._face_layer = FaceAgeRiskLayer(self._config)
         self._ocr_layer = OcrExtractionLayer()
+        self._text_region_ocr_layer = FastTextRegionOcrExtractionLayer()
         self._ocr_risk_layer = OcrRiskEvaluationLayer(self._config)
         self._license_plate_layer = LicensePlateRiskLayer(self._config)
         self._unsupported_layer = UnsupportedDetectionLayer()
+        self._text_region_gate = TextRegionGate(self._config)
 
     def analyze_image(self, image_path: str | Path) -> ImageAnalysisResult:
         image = Path(image_path).resolve()
@@ -38,6 +41,7 @@ class LeakLockPipeline:
         print(f"[LeakLock] {image.name}: YOLO detect found {len(detections)} object(s) in {time.perf_counter() - detect_start:.2f}s")
 
         analyses: list[DetectionAnalysis] = []
+        ocr_detections: list[Detection] = []
 
         for detection in detections:
             route = self._router.route(detection)
@@ -50,6 +54,7 @@ class LeakLockPipeline:
                 if provider:
                     extra_info = f", age_provider={provider}"
             elif route == "ocr_extraction_layer":
+                ocr_detections.append(detection)
                 extraction = self._ocr_layer.extract(image_path=image, detection=detection)
                 risk = self._ocr_risk_layer.evaluate(
                     routed_from_class=detection.class_name,
@@ -69,6 +74,8 @@ class LeakLockPipeline:
 
             analyses.append(DetectionAnalysis(detection=detection, route=route, risk=risk))
 
+        analyses.extend(self._analyze_text_regions(image, ocr_detections))
+
         overall_risk = max((item.risk.risk_percent for item in analyses), default=0)
         print(f"[LeakLock] {image.name}: total analysis time {time.perf_counter() - total_start:.2f}s")
         return ImageAnalysisResult(
@@ -76,6 +83,42 @@ class LeakLockPipeline:
             overall_risk_percent=overall_risk,
             analyses=analyses,
         )
+
+    def _analyze_text_regions(
+        self,
+        image: Path,
+        existing_ocr_detections: list[Detection],
+    ) -> list[DetectionAnalysis]:
+        text_region_analyses: list[DetectionAnalysis] = []
+
+        for detection in self._text_region_gate.detect(image):
+            if any(_box_contains_detection(detection, existing) for existing in existing_ocr_detections):
+                continue
+
+            try:
+                extraction = self._text_region_ocr_layer.extract(image_path=image, detection=detection)
+            except Exception:
+                continue
+
+            if not extraction.text.strip():
+                continue
+
+            risk = self._ocr_risk_layer.evaluate(
+                routed_from_class=detection.class_name,
+                extraction=extraction,
+            )
+            if not _is_actionable_text_region_risk(risk):
+                continue
+
+            text_region_analyses.append(
+                DetectionAnalysis(
+                    detection=detection,
+                    route="text_region_ocr_layer",
+                    risk=risk,
+                )
+            )
+
+        return text_region_analyses
 
     def warm_up(self) -> None:
         """Force each layer's eager model to load against a throwaway image,
@@ -118,3 +161,33 @@ class LeakLockPipeline:
             pass
         finally:
             dummy_path.unlink(missing_ok=True)
+
+
+def _is_actionable_text_region_risk(risk) -> bool:
+    if risk.risk_percent <= 0:
+        return False
+
+    classification = risk.evidence.get("classification", {})
+    matched_features = classification.get("matched_features", [])
+    return bool(matched_features)
+
+
+def _box_contains_detection(candidate: Detection, existing: Detection) -> bool:
+    candidate_area = _box_area(candidate.box)
+    if candidate_area <= 0:
+        return False
+
+    intersection_area = _intersection_area(candidate.box, existing.box)
+    return intersection_area / candidate_area >= 0.8
+
+
+def _intersection_area(first: BoundingBox, second: BoundingBox) -> float:
+    x1 = max(first.x1, second.x1)
+    y1 = max(first.y1, second.y1)
+    x2 = min(first.x2, second.x2)
+    y2 = min(first.y2, second.y2)
+    return max(0.0, x2 - x1) * max(0.0, y2 - y1)
+
+
+def _box_area(box: BoundingBox) -> float:
+    return max(0.0, box.x2 - box.x1) * max(0.0, box.y2 - box.y1)

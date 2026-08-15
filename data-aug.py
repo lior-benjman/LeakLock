@@ -4,7 +4,7 @@ import subprocess
 import sys
 
 
-DEFAULT_PEXELS_API_KEY = "uGygwoVIwU0NsH3ZEoZJSvjvmTDjq5GEDTXTbA0kK64CidJh5k7XxYa2"
+DEFAULT_PEXELS_API_KEY = "local only"
 
 
 def source_class_name_for_output(class_name):

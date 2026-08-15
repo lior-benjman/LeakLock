@@ -29,6 +29,11 @@ SKIP_STARTUP_WARMUP = os.getenv("LEAKLOCK_SKIP_STARTUP_WARMUP", "").lower() in {
     "true",
     "yes",
 }
+REALTIME_MODE = os.getenv("LEAKLOCK_REALTIME_MODE", "1").lower() not in {
+    "0",
+    "false",
+    "no",
+}
 
 _pipeline: LeakLockPipeline | None = None
 _pipeline_config: PipelineConfig | None = None
@@ -45,6 +50,11 @@ def _get_pipeline_config() -> PipelineConfig:
         # Match notebooks/leaklock_upload_pipeline.ipynb so the extension backend
         # uses the same configured model weights as the notebook pipeline.
         _pipeline_config = PipelineConfig(repo_root=REPO_ROOT)
+        if REALTIME_MODE:
+            # The browser extension blocks uploads while this endpoint runs, so
+            # keep API inference bounded to fast OCR and rule-based text risk.
+            _pipeline_config.enable_slow_ocr_fallbacks = False
+            _pipeline_config.enable_document_ml_risk = False
     return _pipeline_config
 
 
@@ -71,6 +81,9 @@ def _model_metadata() -> dict[str, object]:
         "detection_confidence_threshold": config.detection_confidence_threshold,
         "onnx_age_model_repo": config.hf_age_model_repo_id,
         "transformers_age_model": config.hf_age_classifier_model_id,
+        "realtime_mode": REALTIME_MODE,
+        "slow_ocr_fallbacks_enabled": config.enable_slow_ocr_fallbacks,
+        "document_ml_risk_enabled": config.enable_document_ml_risk,
     }
 
 

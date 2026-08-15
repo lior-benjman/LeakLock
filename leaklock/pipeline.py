@@ -7,7 +7,7 @@ from .config import PipelineConfig
 from .layers.detection import YoloDetectionLayer
 from .layers.face_age import FaceAgeRiskLayer
 from .layers.license_plate import LicensePlateRiskLayer
-from .layers.ocr import FastTextRegionOcrExtractionLayer, OcrExtractionLayer
+from .layers.ocr import FastOcrExtractionLayer, FastTextRegionOcrExtractionLayer, OcrExtractionLayer
 from .layers.ocr_risk import OcrRiskEvaluationLayer
 from .layers.routing import DetectionRouter
 from .layers.unsupported import UnsupportedDetectionLayer
@@ -23,7 +23,11 @@ class LeakLockPipeline:
         self._detection_layer = YoloDetectionLayer(self._config)
         self._router = DetectionRouter(self._config)
         self._face_layer = FaceAgeRiskLayer(self._config)
-        self._ocr_layer = OcrExtractionLayer()
+        self._ocr_layer = (
+            OcrExtractionLayer()
+            if self._config.enable_slow_ocr_fallbacks
+            else FastOcrExtractionLayer()
+        )
         self._text_region_ocr_layer = FastTextRegionOcrExtractionLayer()
         self._ocr_risk_layer = OcrRiskEvaluationLayer(self._config)
         self._license_plate_layer = LicensePlateRiskLayer(self._config)

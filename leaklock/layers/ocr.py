@@ -66,11 +66,11 @@ class OcrExtractionLayer:
             return self._get_provider().extract_text(crop_path)
 
 
-class FastTextRegionOcrExtractionLayer(OcrExtractionLayer):
-    """OCR layer for text-region gate crops.
+class FastOcrExtractionLayer(OcrExtractionLayer):
+    """Fast OCR layer for latency-sensitive upload checks.
 
-    Text-region crops are already likely to contain text, so this keeps the
-    path fast by avoiding the heavyweight TrOCR/EasyOCR fallback chain.
+    This keeps the path fast by avoiding the heavyweight EasyOCR/TrOCR
+    fallback chain.
     """
 
     def _default_provider(self) -> OcrProvider:
@@ -91,5 +91,9 @@ class FastTextRegionOcrExtractionLayer(OcrExtractionLayer):
             return FallbackOcrProvider(providers)
 
         return UnavailableOcrProvider(
-            " | ".join(errors) if errors else "Fast text-region OCR provider is not configured yet"
+            " | ".join(errors) if errors else "Fast OCR provider is not configured yet"
         )
+
+
+class FastTextRegionOcrExtractionLayer(FastOcrExtractionLayer):
+    """OCR layer for text-region gate crops."""

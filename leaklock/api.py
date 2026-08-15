@@ -24,6 +24,11 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 # so an abandoned request (closed tab) or a pathologically slow image
 # produces a clean error instead of the client hanging indefinitely.
 ANALYSIS_TIMEOUT_SECONDS = 60.0
+SKIP_STARTUP_WARMUP = os.getenv("LEAKLOCK_SKIP_STARTUP_WARMUP", "").lower() in {
+    "1",
+    "true",
+    "yes",
+}
 
 _pipeline: LeakLockPipeline | None = None
 _pipeline_config: PipelineConfig | None = None
@@ -84,10 +89,11 @@ def _runtime_metadata() -> dict[str, object]:
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    pipeline = _get_pipeline()
-    # Force every layer's model to load now, off the event loop, so the
-    # first real request doesn't pay model-loading latency.
-    await asyncio.get_event_loop().run_in_executor(None, pipeline.warm_up)
+    if not SKIP_STARTUP_WARMUP:
+        pipeline = _get_pipeline()
+        # Force every layer's model to load now, off the event loop, so the
+        # first real request doesn't pay model-loading latency.
+        await asyncio.get_event_loop().run_in_executor(None, pipeline.warm_up)
     yield
 
 

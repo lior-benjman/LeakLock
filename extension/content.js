@@ -1,6 +1,6 @@
 'use strict';
 
-const API_URL = 'http://localhost:8000/analyze-image';
+const API_URL = 'https://leaklock-api-799658247857.us-central1.run.app/analyze-image';
 const OVERLAY_HOST_ID = 'leaklock-overlay-host';
 const MAX_BATCH_FILES = 10;
 const ANALYSIS_TIMEOUT_MS = 30000;

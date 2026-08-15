@@ -358,7 +358,13 @@ def main():
     ensure_dir(image_dir)
     ensure_dir(label_dir)
 
-    created = 0
+    existing_images = len(list_image_files(image_dir)) if os.path.isdir(image_dir) else 0
+    existing_labels = len(
+        [name for name in os.listdir(label_dir) if name.lower().endswith(".txt")]
+    ) if os.path.isdir(label_dir) else 0
+    created = min(existing_images, existing_labels)
+    if created:
+        print(f"Resuming generation from existing count: {created}")
     attempts = 0
     max_attempts = max(args.num_images * 20, 100)
 

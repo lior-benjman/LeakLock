@@ -4,6 +4,24 @@ import subprocess
 import sys
 
 
+DEFAULT_PEXELS_API_KEY = "local only"
+
+
+def source_class_name_for_output(class_name):
+    normalized = class_name.strip().lower()
+    if normalized == "id-card":
+        # The current dataset has no class-7 cutouts on disk, so reuse the card crops
+        # as the visual source while emitting class-7 labels downstream.
+        return "card"
+    return normalized
+
+
+def source_class_id_for_output(class_id):
+    if class_id == 7:
+        return 3
+    return class_id
+
+
 def parse_args():
     repo_root = os.path.dirname(os.path.abspath(__file__))
     parser = argparse.ArgumentParser(
@@ -16,7 +34,7 @@ def parse_args():
     )
     parser.add_argument(
         "--class-name",
-        default="card",
+        default="id-card",
         help="Class name to extract from data.yaml.",
     )
     parser.add_argument(
@@ -28,7 +46,7 @@ def parse_args():
     parser.add_argument(
         "--num-images",
         type=int,
-        default=7000,
+        default=1000,
         help="How many synthetic images to generate.",
     )
     parser.add_argument(
@@ -38,7 +56,7 @@ def parse_args():
     )
     parser.add_argument( # needs to be named after the class name
         "--output-dir",
-        default=os.path.join(repo_root, "synthetic_card_output_v2"),
+        default=os.path.join(repo_root, "synthetic_id-card_output"),
         help="Final synthetic dataset output directory.",
     )
     parser.add_argument(
@@ -49,13 +67,13 @@ def parse_args():
     )
     parser.add_argument(
         "--pexels-api-key",
-        default=os.environ.get("PEXELS_API_KEY", ""),
-        help="Pexels API key. Defaults to PEXELS_API_KEY env var.",
+        default=os.environ.get("PEXELS_API_KEY", DEFAULT_PEXELS_API_KEY),
+        help="Pexels API key. Defaults to PEXELS_API_KEY env var or the built-in fallback key.",
     )
     parser.add_argument(
         "--pages",
         type=int,
-        default=8,
+        default=5,
         help="How many Pexels result pages to fetch per query.",
     )
     parser.add_argument(
@@ -109,8 +127,8 @@ def default_queries_for_class(class_name):
     normalized = class_name.strip().lower()
     if normalized == "license-plates":
         return ["truck trailer rear", "semi truck back", "trailer rear view"]
-    if normalized == "card":
-        return ["desk background", "wallet on table", "wooden table top","empty room background no people","empty office wall no people"]
+    if normalized in {"card", "id-card"}:
+        return ["wooden table top"]
     if normalized == "document":
         return ["office desk", "paper on desk", "workspace table"]
     if normalized == "face":
@@ -120,7 +138,7 @@ def default_queries_for_class(class_name):
             "street background no people",
             "park background no people",
         ]
-    return ["neutral background", "indoor background", "outdoor background"]
+    return ["wallet on table"]
 
 
 def safe_name(value):
@@ -151,18 +169,27 @@ def run_command(command):
 def main():
     args = parse_args()
     repo_root = os.path.dirname(os.path.abspath(__file__))
-    class_id_to_name = {0: "card", 1: "document", 2: "face", 3: "license-plates"}
+    class_id_to_name = {
+        3: "card",
+        5: "document",
+        6: "face",
+        7: "id-card",
+        8: "license-plates",
+    }
     effective_class_name = class_id_to_name.get(args.class_id, args.class_name)
+    source_class_name = source_class_name_for_output(effective_class_name)
+    source_class_id = source_class_id_for_output(args.class_id)
 
     class_label = f"class-{args.class_id}" if args.class_id is not None else effective_class_name
     class_slug = safe_name(class_label)
+    source_class_slug = safe_name(source_class_name)
 
     work_dir = os.path.abspath(args.work_dir)
     output_dir = os.path.abspath(args.output_dir)
     ensure_dir(work_dir)
     ensure_dir(output_dir)
 
-    extract_dir = os.path.join(work_dir, f"extracted_{class_slug}")
+    extract_dir = os.path.join(work_dir, f"extracted_{source_class_slug}")
     backgrounds_dir = os.path.join(work_dir, f"backgrounds_{class_slug}")
 
     extractor_script = os.path.join(repo_root, "extract_yolo_objects.py")
@@ -185,14 +212,14 @@ def main():
             "--output-dir",
             extract_dir,
         ]
-        if args.class_id is not None:
-            extract_command.extend(["--class-id", str(args.class_id)])
+        if source_class_id is not None:
+            extract_command.extend(["--class-id", str(source_class_id)])
         else:
-            extract_command.extend(["--class-name", args.class_name])
+            extract_command.extend(["--class-name", source_class_name])
         run_command(extract_command)
 
     if not args.skip_download:
-        api_key = args.pexels_api_key or os.environ.get("PEXELS_API_KEY", "")
+        api_key = args.pexels_api_key or os.environ.get("PEXELS_API_KEY", DEFAULT_PEXELS_API_KEY)
         if not api_key:
             raise ValueError(
                 "Missing Pexels API key. Pass --pexels-api-key or set PEXELS_API_KEY."
@@ -218,6 +245,8 @@ def main():
             "--orientation",
             "landscape",
             "--size",
+            "large",
+            "--image-size",
             "large",
         ]
         for query in queries:
@@ -249,7 +278,13 @@ def main():
     if args.class_id is not None:
         generate_command.extend(["--class-id", str(args.class_id)])
     else:
-        default_class_ids = {"card": 0, "document": 1, "face": 2, "license-plates": 3}
+        default_class_ids = {
+            "card": 3,
+            "document": 5,
+            "face": 6,
+            "id-card": 7,
+            "license-plates": 8,
+        }
         class_id = default_class_ids.get(effective_class_name.lower())
         if class_id is None:
             raise ValueError(

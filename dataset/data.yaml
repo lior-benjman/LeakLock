@@ -2,12 +2,12 @@ train: ../train/images
 val: ../valid/images
 test: ../test/images
 
-nc: 15
-names: ['Cards', 'Lanyard', 'barcode', 'card', 'code_screen', 'document', 'face', 'id-card', 'license-plates', 'licensePlate', 'number-plate', 'passport', 'polygon', 'positive', 'qrcode']
+nc: 8
+names: ['barcode', 'card', 'code_screen', 'document', 'face', 'id-card', 'license-plates', 'passport']
 
 roboflow:
   workspace: leaklock
   project: id-card-segmentation-hk0gw
-  version: 5
+  version: 7
   license: CC BY 4.0
-  url: https://universe.roboflow.com/leaklock/id-card-segmentation-hk0gw/dataset/5
+  url: https://universe.roboflow.com/leaklock/id-card-segmentation-hk0gw/dataset/7

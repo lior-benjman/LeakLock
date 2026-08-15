@@ -1,11 +1,14 @@
 __pycache__/
 *.py[cod]
+*.pyc
+.venv/
 
 # datasets
 id-card-segmentation-2/
 id-card-segmentation-5/
 id-card-segmentation-6/
 dataset/
+dataset2/
 data/
 runs/
 *.pth

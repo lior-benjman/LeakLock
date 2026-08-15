@@ -1,0 +1,29 @@
+{
+  "image_path": "C:\\Users\\liort\\Documents\\GitHub\\LeakLock\\uploaded_images\\pl_license_plate_71_jpg.rf.371d860f290c745c280d4041ab15f9f7.jpg",
+  "overall_risk_percent": 75,
+  "analyses": [
+    {
+      "detection": {
+        "class_id": 6,
+        "class_name": "license-plates",
+        "confidence": 0.9169473052024841,
+        "box": {
+          "x1": 383.6529541015625,
+          "y1": 285.3544006347656,
+          "x2": 532.0601196289062,
+          "y2": 354.3044738769531
+        }
+      },
+      "route": "license_plate_risk_layer",
+      "risk": {
+        "layer_name": "license_plate_risk_layer",
+        "routed_from_class": "license-plates",
+        "risk_percent": 75,
+        "reason": "License-plate was detected",
+        "evidence": {
+          "confidence": 0.9169473052024841
+        }
+      }
+    }
+  ]
+}

@@ -1,0 +1,74 @@
+{
+  "image_path": "C:\\Users\\liort\\Documents\\GitHub\\LeakLock\\uploaded_images\\1fa148829e036d5473572918ee17581c_jpg.rf.f8f52466b600188d9b89f5d944374536.jpg",
+  "overall_risk_percent": 53,
+  "analyses": [
+    {
+      "detection": {
+        "class_id": 5,
+        "class_name": "id-card",
+        "confidence": 0.9479101896286011,
+        "box": {
+          "x1": 111.7860107421875,
+          "y1": 253.71986389160156,
+          "x2": 517.8797607421875,
+          "y2": 503.50341796875
+        }
+      },
+      "route": "ocr_extraction_layer",
+      "risk": {
+        "layer_name": "ocr_risk_evaluation_layer",
+        "routed_from_class": "id-card",
+        "risk_percent": 53,
+        "reason": "Id-Card text contains sensitive indicators: long_digit_sequence",
+        "evidence": {
+          "ocr": {
+            "text": "2.50\nAMARTAL DR549-002 LICENCE\n0.00\nWWW.P\nJAN 67 -0008 MINMARY\nAMBENTAS DRIVERS LICENCE\n156433-062 -5 PMOUNT\n***\nITA RECEIPT NO:\nFOR FOLLOWING TAILS AGAIN\n8 - 14 JAN 1987\nCASHIER ***",
+            "provider": "trocr",
+            "details": "OCR extracted from cropped detection using model=microsoft/trocr-base-printed, best_variant=original, quality_score=495"
+          },
+          "classification": {
+            "risk_percent": 53,
+            "matched_features": [
+              "long_digit_sequence"
+            ],
+            "model": "rule_based_sensitive_text_classifier",
+            "rule_based_risk_percent": 30,
+            "ml_risk_percent": 88,
+            "blend_weights": {
+              "rule_based": 0.6,
+              "document_ml": 0.4
+            }
+          },
+          "document_ml_analysis": {
+            "document_type": "financial document",
+            "confidence": 0.4239349663257599,
+            "entities": [],
+            "patterns": {
+              "emails": [],
+              "phones": [],
+              "dates": [],
+              "long_numbers": [
+                "156433"
+              ],
+              "keyword_hits": {
+                "government_id_keywords": [],
+                "financial_keywords": [],
+                "medical_keywords": []
+              }
+            },
+            "risk": {
+              "risk_percent": 88,
+              "risk_score": 0.8847869932651521,
+              "risk_level": "high"
+            }
+          },
+          "digit_sequences": [
+            "0008",
+            "156433",
+            "1987"
+          ]
+        }
+      }
+    }
+  ]
+}

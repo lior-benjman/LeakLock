@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>LeakLock</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <img src="icons/icon48.png" class="logo-img" alt="LeakLock">
+      <div class="header-text">
+        <div class="app-name">LeakLock</div>
+        <div class="app-tagline">Image Privacy Protection</div>
+      </div>
+    </div>
+
+    <div class="toggle-section">
+      <div class="toggle-info">
+        <div class="toggle-label">Protection</div>
+        <div class="toggle-sublabel" id="toggle-sublabel">Click to enable</div>
+      </div>
+      <label class="toggle-wrap" aria-label="Toggle LeakLock">
+        <input type="checkbox" id="toggle">
+        <span class="toggle-track">
+          <span class="toggle-thumb"></span>
+        </span>
+      </label>
+    </div>
+
+    <div class="status" id="status">
+      <div class="status-dot" id="status-dot"></div>
+      <span id="status-text">Loading…</span>
+    </div>
+
+    <div class="footer">
+      Backend: <span class="endpoint" title="https://leaklock-api-799658247857.us-central1.run.app">Cloud Run</span>
+    </div>
+  </div>
+  <script src="popup.js"></script>
+</body>
+</html>

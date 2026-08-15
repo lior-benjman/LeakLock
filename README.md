@@ -12,3 +12,8 @@ Download dataset from Roboflow using the API key snippet ! ! ! ! ! ! ! !
 * We integrated SAM to enable targeted, fine-grained blurring.
 
 
+To run the BACKEND:
+py -3.10 -m uvicorn leaklock.api:app --port 8000
+
+If id didn't work you should try to install the requirements first with:
+py -3.10 -m pip install -r requirements.txt

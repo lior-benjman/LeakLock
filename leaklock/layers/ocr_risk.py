@@ -4,8 +4,10 @@ import json
 import re
 from typing import Any
 
-import spacy
-from transformers import pipeline
+try:
+    import spacy
+except ImportError:  # pragma: no cover - depends on runtime
+    spacy = None
 
 from ..config import PipelineConfig
 from ..models import OcrExtraction, RiskResult
@@ -52,11 +54,18 @@ class OcrRiskEvaluationLayer:
         ml_risk_percent: int | None = None
         fallback_reason: str | None = None
 
-        try:
-            document_ml_analysis = evaluate_document_risk(extraction.text)
-            ml_risk_percent = _clamp_percent(document_ml_analysis["risk"]["risk_percent"])
-        except Exception as exc:  # noqa: BLE001 - keep OCR path stable if ML branch fails.
-            fallback_reason = f"{exc.__class__.__name__}: {exc}"
+        if self._config.enable_document_ml_risk:
+            try:
+                import time as _time
+                print("[LeakLock][bart] running facebook/bart-large-mnli zero-shot classifier ...", flush=True)
+                _t0 = _time.perf_counter()
+                document_ml_analysis = evaluate_document_risk(extraction.text)
+                print(f"[LeakLock][bart] done in {_time.perf_counter() - _t0:.2f}s — doc_type={document_ml_analysis.get('document_type')}", flush=True)
+                ml_risk_percent = _clamp_percent(document_ml_analysis["risk"]["risk_percent"])
+            except Exception as exc:  # noqa: BLE001 - keep OCR path stable if ML branch fails.
+                fallback_reason = f"{exc.__class__.__name__}: {exc}"
+        else:
+            fallback_reason = "Document ML risk branch disabled by configuration"
 
         if ml_risk_percent is None:
             blended_risk_percent = rule_risk_percent
@@ -65,6 +74,10 @@ class OcrRiskEvaluationLayer:
                 (rule_risk_percent * RULE_BASED_WEIGHT)
                 + (ml_risk_percent * DOCUMENT_ML_WEIGHT)
             )
+
+        matched_features = rule_classification.get("matched_features", [])
+        if "credential" in matched_features:
+            blended_risk_percent = max(blended_risk_percent, rule_risk_percent)
 
         classification: dict[str, Any] = {
             **rule_classification,
@@ -99,25 +112,33 @@ class OcrRiskEvaluationLayer:
 
 
 # Load NLP Models
-try:
-    nlp = spacy.load("en_core_web_sm")
-except Exception:
-    # Keep pipeline operational even when full spaCy model is unavailable.
-    nlp = spacy.blank("en")
+if spacy is None:
+    nlp = None
+else:
+    try:
+        nlp = spacy.load("en_core_web_sm")
+    except Exception:
+        # Keep pipeline operational even when full spaCy model is unavailable.
+        nlp = spacy.blank("en")
 
 
 def _load_zero_shot_classifier():
+    try:
+        from transformers import pipeline as transformers_pipeline
+    except ImportError:
+        return None
+
     model_name = "facebook/bart-large-mnli"
     try:
         # Prefer local cache first so analysis works in restricted/no-network runtimes.
-        return pipeline(
+        return transformers_pipeline(
             "zero-shot-classification",
             model=model_name,
             local_files_only=True,
         )
     except Exception:
         try:
-            return pipeline(
+            return transformers_pipeline(
                 "zero-shot-classification",
                 model=model_name,
                 local_files_only=False,
@@ -126,7 +147,18 @@ def _load_zero_shot_classifier():
             return None
 
 
-classifier = _load_zero_shot_classifier()
+classifier = None
+classifier_loaded = False
+
+
+def _get_zero_shot_classifier():
+    global classifier, classifier_loaded
+
+    if not classifier_loaded:
+        classifier = _load_zero_shot_classifier()
+        classifier_loaded = True
+
+    return classifier
 
 # Config
 DOCUMENT_LABELS = [
@@ -224,6 +256,8 @@ def detect_patterns(text: str) -> dict[str, Any]:
 
 # Entity Extraction
 def extract_sensitive_entities(text: str) -> list[dict[str, str]]:
+    if nlp is None:
+        return []
 
     doc = nlp(text)
 
@@ -239,6 +273,7 @@ def extract_sensitive_entities(text: str) -> list[dict[str, str]]:
 
 # Document Classification
 def classify_document(text: str) -> dict[str, Any]:
+    classifier = _get_zero_shot_classifier()
     if classifier is None:
         # Conservative fallback when zero-shot model isn't available.
         return {

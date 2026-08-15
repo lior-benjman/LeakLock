@@ -1,0 +1,4 @@
+slice,images,ground_truth_objects,predicted_objects,mean_processing_seconds,image_risk_mae,image_risk_rmse,image_risk_band_accuracy,image_high_risk_precision,image_high_risk_recall,object_risk_mae,object_risk_rmse,object_risk_band_accuracy,unsupported_prediction_rate,ocr_success_rate,age_success_rate
+synthetic_only,240,318,330,1.84,7.8,13.9,0.88,0.91,0.94,9.2,15.5,0.86,0.01,0.93,0.96
+real_only,160,205,196,2.31,13.4,20.2,0.79,0.83,0.76,14.1,22.7,0.77,0.06,0.78,0.90
+all_images,400,523,526,2.03,10.1,16.8,0.84,0.88,0.86,11.4,18.7,0.82,0.03,0.87,0.94

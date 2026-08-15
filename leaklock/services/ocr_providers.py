@@ -1,12 +1,9 @@
 from __future__ import annotations
 
 import re
+import time
 from pathlib import Path
-from typing import Protocol
-
-import cv2
-import numpy as np
-from PIL import Image, ImageFilter, ImageOps
+from typing import Any, Callable, Protocol
 
 from ..models import OcrExtraction
 
@@ -22,10 +19,13 @@ class TrOcrProvider:
         try:
             import torch
             from transformers import TrOCRProcessor, VisionEncoderDecoderModel
+            from transformers.utils import logging as transformers_logging
         except ImportError as exc:  # pragma: no cover - depends on runtime
             raise RuntimeError(
                 "transformers and torch are required for TrOCR extraction."
             ) from exc
+
+        transformers_logging.set_verbosity_error()
 
         def _load_from_pretrained(
             processor_cls,
@@ -65,7 +65,7 @@ class TrOcrProvider:
                 f"TrOCR could not initialize from {model_name}: {exc}"
             ) from exc
 
-    def _predict_text(self, image: Image.Image) -> str:
+    def _predict_text(self, image: Any) -> str:
         pixel_values = self._processor(images=image.convert("RGB"), return_tensors="pt").pixel_values
         with self._torch.no_grad():
             generated_ids = self._model.generate(
@@ -76,14 +76,14 @@ class TrOcrProvider:
         text = self._processor.batch_decode(generated_ids, skip_special_tokens=True)[0].strip()
         return text
 
-    def _line_slices(self, image: Image.Image) -> list[tuple[str, Image.Image]]:
+    def _line_slices(self, image: Any) -> list[tuple[str, Any]]:
         width, height = image.size
-        slices: list[tuple[str, Image.Image]] = [("full", image)]
+        slices: list[tuple[str, Any]] = [("full", image)]
         if height < 120:
             return slices
 
         # Coarse bands preserve broad context.
-        bands = 4
+        bands = 2
         band_height = max(1, height // bands)
         overlap = max(8, band_height // 8)
 
@@ -98,7 +98,7 @@ class TrOcrProvider:
         fine_window = max(48, min(120, height // 10))
         fine_step = max(24, fine_window // 2)
         slice_index = 1
-        max_fine_slices = 8
+        max_fine_slices = 3
         for top in range(0, max(1, height - fine_window + 1), fine_step):
             if slice_index > max_fine_slices:
                 break
@@ -162,7 +162,7 @@ class TrOcrProvider:
                 best_variant_name = variant_name
 
             # High-quality extraction reached; no need to try additional variants.
-            if best_score >= 220:
+            if best_score >= GOOD_ENOUGH_SCORE:
                 break
 
         if best_text:
@@ -213,18 +213,30 @@ class RapidOcrProvider:
                 details=f"RapidOCR could not run: {exc}",
             )
 
-        if isinstance(result, tuple):
+        if hasattr(result, "txts"):
+            text_parts = [
+                str(text_value).strip()
+                for text_value in getattr(result, "txts", [])
+                if text_value
+            ]
+        elif isinstance(result, tuple):
             detections = result[0]
+            text_parts = []
+            if detections:
+                for item in detections:
+                    if isinstance(item, (list, tuple)) and len(item) >= 2:
+                        text_value = item[1]
+                        if text_value:
+                            text_parts.append(str(text_value).strip())
         else:
             detections = result
-
-        text_parts: list[str] = []
-        if detections:
-            for item in detections:
-                if isinstance(item, (list, tuple)) and len(item) >= 2:
-                    text_value = item[1]
-                    if text_value:
-                        text_parts.append(str(text_value).strip())
+            text_parts = []
+            if detections:
+                for item in detections:
+                    if isinstance(item, (list, tuple)) and len(item) >= 2:
+                        text_value = item[1]
+                        if text_value:
+                            text_parts.append(str(text_value).strip())
 
         return OcrExtraction(
             text="\n".join(part for part in text_parts if part),
@@ -233,10 +245,10 @@ class RapidOcrProvider:
         )
 
 
-def _pil_resampling_lanczos():
-    if hasattr(Image, "Resampling"):
-        return Image.Resampling.LANCZOS
-    return Image.LANCZOS
+def _pil_resampling_lanczos(image_module: Any):
+    if hasattr(image_module, "Resampling"):
+        return image_module.Resampling.LANCZOS
+    return image_module.LANCZOS
 
 
 def _collect_text_lines(results: list[object]) -> str:
@@ -245,6 +257,13 @@ def _collect_text_lines(results: list[object]) -> str:
         if len(item) >= 2 and item[1]:
             text_parts.append(str(item[1]).strip())
     return "\n".join(part for part in text_parts if part)
+
+
+# A score at or above this bar means the extracted text is substantial
+# enough that trying further (more expensive) providers/variants isn't
+# worth the cost. Matches the threshold TrOcrProvider already used
+# internally to stop trying additional image variants.
+GOOD_ENOUGH_SCORE = 220
 
 
 def _extraction_quality_score(text: str) -> int:
@@ -261,9 +280,18 @@ def _extraction_quality_score(text: str) -> int:
     return (alpha_chars * 2) + digit_chars + (unique_token_count * 8) + (line_count * 4)
 
 
-def _ocr_image_variants(image_path: Path) -> list[tuple[str, Image.Image]]:
+def _ocr_image_variants(image_path: Path) -> list[tuple[str, Any]]:
+    try:
+        import cv2
+        import numpy as np
+        from PIL import Image, ImageFilter, ImageOps
+    except ImportError as exc:  # pragma: no cover - depends on runtime
+        raise RuntimeError(
+            "Pillow, opencv-python, and numpy are required to prepare OCR image variants."
+        ) from exc
+
     base = Image.open(image_path).convert("RGB")
-    resample = _pil_resampling_lanczos()
+    resample = _pil_resampling_lanczos(Image)
 
     enlarged = base.resize((max(1, base.width * 2), max(1, base.height * 2)), resample)
     gray = ImageOps.grayscale(enlarged)
@@ -305,9 +333,27 @@ class EasyOcrProvider:
             ) from exc
 
     def extract_text(self, image_path: Path) -> OcrExtraction:
+        try:
+            import numpy as np
+        except ImportError as exc:  # pragma: no cover - depends on runtime
+            return OcrExtraction(
+                text="",
+                provider="easyocr",
+                details=f"EasyOCR could not run because numpy is unavailable: {exc}",
+            )
+
         last_error: str | None = None
 
-        for variant_name, variant_image in _ocr_image_variants(image_path):
+        try:
+            variants = _ocr_image_variants(image_path)
+        except Exception as exc:  # pragma: no cover - depends on runtime
+            return OcrExtraction(
+                text="",
+                provider="easyocr",
+                details=f"EasyOCR could not prepare image variants: {exc}",
+            )
+
+        for variant_name, variant_image in variants:
             try:
                 results = self._reader.readtext(np.array(variant_image), detail=1, paragraph=False)
                 text = _collect_text_lines(results).strip()
@@ -355,7 +401,16 @@ class TesseractOcrProvider:
 
         last_error: str | None = None
 
-        for variant_name, variant_image in _ocr_image_variants(image_path):
+        try:
+            variants = _ocr_image_variants(image_path)
+        except Exception as exc:  # pragma: no cover - depends on runtime
+            return OcrExtraction(
+                text="",
+                provider="tesseract",
+                details=f"Tesseract could not prepare image variants: {exc}",
+            )
+
+        for variant_name, variant_image in variants:
             for psm in ("6", "11"):
                 try:
                     text = pytesseract.image_to_string(
@@ -384,7 +439,51 @@ class TesseractOcrProvider:
         )
 
 
+class LazyOcrProvider:
+    """Wraps a provider constructor so the underlying model only loads on
+    first actual use instead of at startup. The construction result (success
+    or failure) is cached after the first attempt, so repeated documents
+    reuse the already-loaded model instead of paying load cost again, and a
+    genuinely-missing dependency isn't retried on every request.
+
+    min_input_score: if set, FallbackOcrProvider will skip this provider
+    when the best score from all preceding providers is below this value.
+    Use it to gate expensive last-resort providers (e.g. TrOCR) so they
+    don't run when the image is clearly unreadable by all cheaper engines.
+    """
+
+    def __init__(self, name: str, factory: Callable[[], OcrProvider], min_input_score: int = 0) -> None:
+        self._name = name
+        self._factory = factory
+        self._provider: OcrProvider | None = None
+        self._init_error: str | None = None
+        self.min_input_score = min_input_score
+
+    def extract_text(self, image_path: Path) -> OcrExtraction:
+        if self._provider is None and self._init_error is None:
+            try:
+                self._provider = self._factory()
+            except RuntimeError as exc:
+                self._init_error = str(exc)
+
+        if self._provider is None:
+            return OcrExtraction(
+                text="",
+                provider=self._name,
+                details=f"{self._name} unavailable: {self._init_error}",
+            )
+
+        return self._provider.extract_text(image_path)
+
+
 class FallbackOcrProvider:
+    """Tries providers in order, stopping as soon as one is good enough.
+
+    Providers should be ordered cheapest/fastest first so the common case
+    (a clean image) resolves on the first or second provider instead of
+    always paying for every engine in the chain.
+    """
+
     def __init__(self, providers: list[OcrProvider]) -> None:
         self._providers = providers
 
@@ -394,8 +493,24 @@ class FallbackOcrProvider:
         attempts: list[str] = []
 
         for provider in self._providers:
+            name = getattr(provider, "_name", provider.__class__.__name__)
+            min_input = getattr(provider, "min_input_score", 0)
+            if min_input > 0 and best_score < min_input:
+                print(
+                    f"[LeakLock][OCR] skipping {name} — best score so far {best_score} < required {min_input}",
+                    flush=True,
+                )
+                continue
+            print(f"[LeakLock][OCR] trying {name} ...", flush=True)
+            t0 = time.perf_counter()
             extraction = provider.extract_text(image_path)
+            elapsed = time.perf_counter() - t0
             score = _extraction_quality_score(extraction.text)
+            print(
+                f"[LeakLock][OCR] {extraction.provider} done in {elapsed:.2f}s — "
+                f"score={score} (need {GOOD_ENOUGH_SCORE} to stop)",
+                flush=True,
+            )
 
             if score > best_score:
                 best_score = score
@@ -404,6 +519,10 @@ class FallbackOcrProvider:
             attempts.append(
                 f"{extraction.provider}: score={score}; details={extraction.details}"
             )
+
+            if best_score >= GOOD_ENOUGH_SCORE:
+                # Good enough — skip the remaining, more expensive providers.
+                break
 
         if best_extraction and best_score > 0:
             return best_extraction

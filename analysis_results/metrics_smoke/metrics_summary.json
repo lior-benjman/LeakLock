@@ -1,0 +1,352 @@
+{
+  "metadata": {
+    "dataset": "C:\\Users\\liort\\Documents\\GitHub\\LeakLock\\dataset",
+    "dataset_splits": [
+      "test"
+    ],
+    "images_evaluated": 1,
+    "iou_threshold": 0.5,
+    "risk_targets": {
+      "barcode": 40,
+      "card": 90,
+      "code_screen": 40,
+      "document": 90,
+      "face": 60,
+      "id-card": 90,
+      "id": 90,
+      "license-plates": 75,
+      "passport": 90
+    },
+    "synthetic_patterns": [
+      "synthetic",
+      "generated",
+      "gemini",
+      "random"
+    ],
+    "source_manifest": null,
+    "weights": "C:\\Users\\liort\\Documents\\GitHub\\LeakLock\\runs_sensitive\\yolov86\\weights\\best.pt",
+    "document_ml_risk_enabled": false
+  },
+  "summary": [
+    {
+      "slice": "synthetic_only",
+      "images": 1,
+      "ground_truth_objects": 1,
+      "predicted_objects": 1,
+      "mean_processing_seconds": 146.59081,
+      "image_risk_mae": 90.0,
+      "image_risk_rmse": 90.0,
+      "image_risk_band_accuracy": 0.0,
+      "image_high_risk_precision": 0.0,
+      "image_high_risk_recall": 0.0,
+      "object_risk_mae": 90.0,
+      "object_risk_rmse": 90.0,
+      "object_risk_band_accuracy": 0.0,
+      "unsupported_prediction_rate": 0.0,
+      "ocr_success_rate": 1.0,
+      "age_success_rate": 0.0
+    },
+    {
+      "slice": "real_only",
+      "images": 0,
+      "ground_truth_objects": 0,
+      "predicted_objects": 0,
+      "mean_processing_seconds": 0.0,
+      "image_risk_mae": 0.0,
+      "image_risk_rmse": 0.0,
+      "image_risk_band_accuracy": 0.0,
+      "image_high_risk_precision": 0.0,
+      "image_high_risk_recall": 0.0,
+      "object_risk_mae": 0.0,
+      "object_risk_rmse": 0.0,
+      "object_risk_band_accuracy": 0.0,
+      "unsupported_prediction_rate": 0.0,
+      "ocr_success_rate": 0.0,
+      "age_success_rate": 0.0
+    },
+    {
+      "slice": "all_images",
+      "images": 1,
+      "ground_truth_objects": 1,
+      "predicted_objects": 1,
+      "mean_processing_seconds": 146.59081,
+      "image_risk_mae": 90.0,
+      "image_risk_rmse": 90.0,
+      "image_risk_band_accuracy": 0.0,
+      "image_high_risk_precision": 0.0,
+      "image_high_risk_recall": 0.0,
+      "object_risk_mae": 90.0,
+      "object_risk_rmse": 90.0,
+      "object_risk_band_accuracy": 0.0,
+      "unsupported_prediction_rate": 0.0,
+      "ocr_success_rate": 1.0,
+      "age_success_rate": 0.0
+    }
+  ],
+  "per_class": [
+    {
+      "slice": "synthetic_only",
+      "class": "barcode",
+      "support": 0,
+      "tp": 0,
+      "fp": 0,
+      "fn": 0,
+      "precision": 0.0,
+      "recall": 0.0,
+      "f1": 0.0
+    },
+    {
+      "slice": "synthetic_only",
+      "class": "card",
+      "support": 0,
+      "tp": 0,
+      "fp": 0,
+      "fn": 0,
+      "precision": 0.0,
+      "recall": 0.0,
+      "f1": 0.0
+    },
+    {
+      "slice": "synthetic_only",
+      "class": "code_screen",
+      "support": 0,
+      "tp": 0,
+      "fp": 0,
+      "fn": 0,
+      "precision": 0.0,
+      "recall": 0.0,
+      "f1": 0.0
+    },
+    {
+      "slice": "synthetic_only",
+      "class": "document",
+      "support": 1,
+      "tp": 1,
+      "fp": 0,
+      "fn": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0
+    },
+    {
+      "slice": "synthetic_only",
+      "class": "face",
+      "support": 0,
+      "tp": 0,
+      "fp": 0,
+      "fn": 0,
+      "precision": 0.0,
+      "recall": 0.0,
+      "f1": 0.0
+    },
+    {
+      "slice": "synthetic_only",
+      "class": "id-card",
+      "support": 0,
+      "tp": 0,
+      "fp": 0,
+      "fn": 0,
+      "precision": 0.0,
+      "recall": 0.0,
+      "f1": 0.0
+    },
+    {
+      "slice": "synthetic_only",
+      "class": "license-plates",
+      "support": 0,
+      "tp": 0,
+      "fp": 0,
+      "fn": 0,
+      "precision": 0.0,
+      "recall": 0.0,
+      "f1": 0.0
+    },
+    {
+      "slice": "synthetic_only",
+      "class": "passport",
+      "support": 0,
+      "tp": 0,
+      "fp": 0,
+      "fn": 0,
+      "precision": 0.0,
+      "recall": 0.0,
+      "f1": 0.0
+    },
+    {
+      "slice": "real_only",
+      "class": "barcode",
+      "support": 0,
+      "tp": 0,
+      "fp": 0,
+      "fn": 0,
+      "precision": 0.0,
+      "recall": 0.0,
+      "f1": 0.0
+    },
+    {
+      "slice": "real_only",
+      "class": "card",
+      "support": 0,
+      "tp": 0,
+      "fp": 0,
+      "fn": 0,
+      "precision": 0.0,
+      "recall": 0.0,
+      "f1": 0.0
+    },
+    {
+      "slice": "real_only",
+      "class": "code_screen",
+      "support": 0,
+      "tp": 0,
+      "fp": 0,
+      "fn": 0,
+      "precision": 0.0,
+      "recall": 0.0,
+      "f1": 0.0
+    },
+    {
+      "slice": "real_only",
+      "class": "document",
+      "support": 0,
+      "tp": 0,
+      "fp": 0,
+      "fn": 0,
+      "precision": 0.0,
+      "recall": 0.0,
+      "f1": 0.0
+    },
+    {
+      "slice": "real_only",
+      "class": "face",
+      "support": 0,
+      "tp": 0,
+      "fp": 0,
+      "fn": 0,
+      "precision": 0.0,
+      "recall": 0.0,
+      "f1": 0.0
+    },
+    {
+      "slice": "real_only",
+      "class": "id-card",
+      "support": 0,
+      "tp": 0,
+      "fp": 0,
+      "fn": 0,
+      "precision": 0.0,
+      "recall": 0.0,
+      "f1": 0.0
+    },
+    {
+      "slice": "real_only",
+      "class": "license-plates",
+      "support": 0,
+      "tp": 0,
+      "fp": 0,
+      "fn": 0,
+      "precision": 0.0,
+      "recall": 0.0,
+      "f1": 0.0
+    },
+    {
+      "slice": "real_only",
+      "class": "passport",
+      "support": 0,
+      "tp": 0,
+      "fp": 0,
+      "fn": 0,
+      "precision": 0.0,
+      "recall": 0.0,
+      "f1": 0.0
+    },
+    {
+      "slice": "all_images",
+      "class": "barcode",
+      "support": 0,
+      "tp": 0,
+      "fp": 0,
+      "fn": 0,
+      "precision": 0.0,
+      "recall": 0.0,
+      "f1": 0.0
+    },
+    {
+      "slice": "all_images",
+      "class": "card",
+      "support": 0,
+      "tp": 0,
+      "fp": 0,
+      "fn": 0,
+      "precision": 0.0,
+      "recall": 0.0,
+      "f1": 0.0
+    },
+    {
+      "slice": "all_images",
+      "class": "code_screen",
+      "support": 0,
+      "tp": 0,
+      "fp": 0,
+      "fn": 0,
+      "precision": 0.0,
+      "recall": 0.0,
+      "f1": 0.0
+    },
+    {
+      "slice": "all_images",
+      "class": "document",
+      "support": 1,
+      "tp": 1,
+      "fp": 0,
+      "fn": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0
+    },
+    {
+      "slice": "all_images",
+      "class": "face",
+      "support": 0,
+      "tp": 0,
+      "fp": 0,
+      "fn": 0,
+      "precision": 0.0,
+      "recall": 0.0,
+      "f1": 0.0
+    },
+    {
+      "slice": "all_images",
+      "class": "id-card",
+      "support": 0,
+      "tp": 0,
+      "fp": 0,
+      "fn": 0,
+      "precision": 0.0,
+      "recall": 0.0,
+      "f1": 0.0
+    },
+    {
+      "slice": "all_images",
+      "class": "license-plates",
+      "support": 0,
+      "tp": 0,
+      "fp": 0,
+      "fn": 0,
+      "precision": 0.0,
+      "recall": 0.0,
+      "f1": 0.0
+    },
+    {
+      "slice": "all_images",
+      "class": "passport",
+      "support": 0,
+      "tp": 0,
+      "fp": 0,
+      "fn": 0,
+      "precision": 0.0,
+      "recall": 0.0,
+      "f1": 0.0
+    }
+  ]
+}

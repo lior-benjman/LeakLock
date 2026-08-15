@@ -3,7 +3,7 @@
 const API_URL = 'https://leaklock-api-799658247857.us-central1.run.app/analyze-image';
 const OVERLAY_HOST_ID = 'leaklock-overlay-host';
 const MAX_BATCH_FILES = 10;
-const ANALYSIS_TIMEOUT_MS = 30000;
+const ANALYSIS_TIMEOUT_MS = 45000;
 
 let leaklockEnabled = false;
 let isAnalyzing = false;
@@ -312,7 +312,17 @@ function renderImagePreview(item) {
 }
 
 // ── Error / backend unavailable ────────────────────────────────────────────
-function showError(onProceed) {
+function showError(onProceed, options = {}) {
+  const messageHtml = options.messageHtml || `
+          Backend unavailable - upload can continue without analysis.<br><br>
+          Configured endpoint:<br>
+          <span style="font-family:monospace;background:#f1f5f9;border-radius:6px;padding:6px 10px;font-size:12px;color:#0f172a;display:inline-block;margin-top:6px;word-break:break-all">
+            ${API_URL}
+          </span>
+        `;
+  const primaryText = options.primaryText || 'Continue Upload';
+  const secondaryText = options.secondaryText || 'Cancel Upload';
+  const onCancel = options.onCancel || (() => {});
   const sr = getOverlayShadow();
   sr.innerHTML = `
     <style>${BASE_CSS}</style>
@@ -320,18 +330,21 @@ function showError(onProceed) {
       <div class="ll-card" style="text-align:center">
         <div class="ll-title-center">🔒 LeakLock</div>
         <div class="ll-sub" style="margin-bottom:18px;line-height:1.5">
-          Backend unavailable - upload will proceed normally.<br><br>
-          Configured endpoint:<br>
-          <span style="font-family:monospace;background:#f1f5f9;border-radius:6px;padding:6px 10px;font-size:12px;color:#0f172a;display:inline-block;margin-top:6px;word-break:break-all">
-            ${API_URL}
-          </span>
+          ${messageHtml}
         </div>
-        <button class="ll-btn ll-btn-primary" id="ll-err-close" style="width:100%">Close</button>
+        <div class="ll-buttons">
+          <button class="ll-btn ll-btn-cancel" id="ll-err-cancel">${secondaryText}</button>
+          <button class="ll-btn ll-btn-primary" id="ll-err-proceed">${primaryText}</button>
+        </div>
       </div>
     </div>`;
 
-  sr.getElementById('ll-err-close')?.addEventListener('click', () => {
+  sr.getElementById('ll-err-proceed')?.addEventListener('click', () => {
     onProceed();
+    closeOverlay();
+  });
+  sr.getElementById('ll-err-cancel')?.addEventListener('click', () => {
+    onCancel();
     closeOverlay();
   });
   isAnalyzing = false;
@@ -692,16 +705,32 @@ async function analyzeBatch(imageFiles, originalOrder, inputEl, skippedCount) {
       isAnalyzing = false;
       for (const item of items) URL.revokeObjectURL(item.previewUrl);
       if (isAnalysisTimeoutError(err)) {
-        // Fail open on pathological OCR/model hangs. The extension already
-        // blocked the host page's change event, so resume the original file
-        // selection immediately instead of leaving the upload stuck.
-        resumeFiles(inputEl, originalOrder);
-        closeOverlay();
+        showError(
+          () => resumeFiles(inputEl, originalOrder),
+          {
+            messageHtml: `
+              Analysis timed out after ${ANALYSIS_TIMEOUT_MS / 1000} seconds.<br><br>
+              The upload is still blocked. Continue without LeakLock analysis, or cancel this upload.
+            `,
+            primaryText: 'Continue Upload',
+            secondaryText: 'Cancel Upload',
+            onCancel: () => {
+              try { if (inputEl) inputEl.value = ''; } catch (_) {}
+            },
+          }
+        );
         return;
       }
       // Fail open for the whole batch: the backend is down for every file
       // equally, so resume the original selection unmodified.
-      showError(() => resumeFiles(inputEl, originalOrder));
+      showError(
+        () => resumeFiles(inputEl, originalOrder),
+        {
+          onCancel: () => {
+            try { if (inputEl) inputEl.value = ''; } catch (_) {}
+          },
+        }
+      );
       return;
     }
   }

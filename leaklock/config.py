@@ -74,6 +74,7 @@ class PipelineConfig:
     ocr_credential_keyword_weight: int = 75
     ocr_wifi_context_weight: int = 15
     max_ocr_risk_percent: int = 90
+    enable_slow_ocr_fallbacks: bool = True
     enable_document_ml_risk: bool = True
     enable_text_region_gate: bool = True
     text_region_class_name: str = "text_region"

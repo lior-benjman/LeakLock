@@ -71,5 +71,16 @@ class PipelineConfig:
     ocr_high_risk_keywords_weight: int = 25
     ocr_digit_sequence_weight: int = 10
     ocr_name_weight: int = 15
+    ocr_credential_keyword_weight: int = 75
+    ocr_wifi_context_weight: int = 15
     max_ocr_risk_percent: int = 90
     enable_document_ml_risk: bool = True
+    enable_text_region_gate: bool = True
+    text_region_class_name: str = "text_region"
+    text_region_max_image_side: int = 960
+    text_region_max_regions: int = 4
+    text_region_min_area_ratio: float = 0.0008
+    text_region_max_area_ratio: float = 0.18
+    text_region_min_aspect_ratio: float = 1.2
+    text_region_min_width_ratio: float = 0.12
+    text_region_padding_ratio: float = 0.025

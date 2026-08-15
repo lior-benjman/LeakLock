@@ -138,6 +138,8 @@ def _build_explanations(analyses: list) -> list[str]:
             add("Document detected")
         elif class_name == "card":
             add("Card document detected")
+        elif class_name == "text_region":
+            add("Sensitive visible text detected")
         else:
             add(f"{class_name.replace('_', ' ').title()} detected")
 
@@ -147,7 +149,11 @@ def _build_explanations(analyses: list) -> list[str]:
         if matched:
             add("Sensitive OCR keywords detected")
             for feat in matched:
-                if feat in ("passport", "identity", "identification"):
+                if feat == "credential":
+                    add("Password or credential text detected")
+                elif feat == "wifi_network":
+                    add("WiFi network information detected")
+                elif feat in ("passport", "identity", "identification"):
                     add("Identity document indicators detected")
                 elif feat in ("credit card", "card number", "iban", "account"):
                     add("Financial information detected")

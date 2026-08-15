@@ -26,6 +26,29 @@ class RuleBasedSensitiveTextClassifier:
         matched_features: list[str] = []
         risk = 0
 
+        credential_patterns = (
+            r"\bpassword\b",
+            r"\bpasscode\b",
+            r"\bpwd\b",
+            r"\bpsk\b",
+            r"\bnetwork key\b",
+            r"\bsecurity key\b",
+            r"\bwpa(?:2|3)? key\b",
+        )
+        if any(re.search(pattern, normalized) for pattern in credential_patterns):
+            matched_features.append("credential")
+            risk += self._config.ocr_credential_keyword_weight
+
+        wifi_patterns = (
+            r"\bwi[- ]?fi\b",
+            r"\bssid\b",
+            r"\bwireless network\b",
+            r"\bwpa(?:2|3)?\b",
+        )
+        if any(re.search(pattern, normalized) for pattern in wifi_patterns):
+            matched_features.append("wifi_network")
+            risk += self._config.ocr_wifi_context_weight
+
         for keyword in self._config.ocr_high_risk_patterns:
             if keyword in normalized:
                 matched_features.append(keyword)

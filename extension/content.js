@@ -3,10 +3,27 @@
 const API_URL = 'http://localhost:8000/analyze-image';
 const OVERLAY_HOST_ID = 'leaklock-overlay-host';
 const MAX_BATCH_FILES = 10;
+const ANALYSIS_TIMEOUT_MS = 30000;
 
 let leaklockEnabled = false;
 let isAnalyzing = false;
 let currentBatch = null; // set while the results overlay (single image or batch) is open
+
+class AnalysisTimeoutError extends Error {
+  constructor(message) {
+    super(message);
+    this.name = 'AnalysisTimeoutError';
+    this.isLeakLockTimeout = true;
+  }
+}
+
+function isAnalysisTimeoutError(err) {
+  return Boolean(
+    err?.isLeakLockTimeout ||
+    err?.name === 'AbortError' ||
+    String(err?.message || '').includes('HTTP 504')
+  );
+}
 
 // ── State init ─────────────────────────────────────────────────────────────
 chrome.storage.local.get(['leaklockEnabled'], (data) => {
@@ -626,9 +643,24 @@ function resumeFiles(inputEl, files) {
 async function fetchAnalysis(file) {
   const body = new FormData();
   body.append('file', file, file.name || 'upload.jpg');
-  const response = await fetch(API_URL, { method: 'POST', body });
-  if (!response.ok) throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-  return response.json();
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), ANALYSIS_TIMEOUT_MS);
+
+  try {
+    const response = await fetch(API_URL, { method: 'POST', body, signal: controller.signal });
+    if (response.status === 504) {
+      throw new AnalysisTimeoutError(`Analysis timed out after ${ANALYSIS_TIMEOUT_MS / 1000}s`);
+    }
+    if (!response.ok) throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    return response.json();
+  } catch (err) {
+    if (err?.name === 'AbortError') {
+      throw new AnalysisTimeoutError(`Analysis timed out after ${ANALYSIS_TIMEOUT_MS / 1000}s`);
+    }
+    throw err;
+  } finally {
+    clearTimeout(timeoutId);
+  }
 }
 
 async function analyzeBatch(imageFiles, originalOrder, inputEl, skippedCount) {
@@ -659,6 +691,14 @@ async function analyzeBatch(imageFiles, originalOrder, inputEl, skippedCount) {
       console.warn('[LeakLock] Backend error:', err.message);
       isAnalyzing = false;
       for (const item of items) URL.revokeObjectURL(item.previewUrl);
+      if (isAnalysisTimeoutError(err)) {
+        // Fail open on pathological OCR/model hangs. The extension already
+        // blocked the host page's change event, so resume the original file
+        // selection immediately instead of leaving the upload stuck.
+        resumeFiles(inputEl, originalOrder);
+        closeOverlay();
+        return;
+      }
       // Fail open for the whole batch: the backend is down for every file
       // equally, so resume the original selection unmodified.
       showError(() => resumeFiles(inputEl, originalOrder));

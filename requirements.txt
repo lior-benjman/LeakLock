@@ -2,6 +2,7 @@ ultralytics
 opencv-python
 Pillow
 fastapi
+python-multipart
 uvicorn
 pytesseract
 easyocr

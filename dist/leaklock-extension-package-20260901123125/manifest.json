@@ -4,7 +4,6 @@
   "short_name": "LeakLock",
   "version": "1.0.0",
   "description": "Active image privacy protection - analyzes images before you upload them.",
-  "homepage_url": "https://lior-benjman.github.io/LeakLock/",
   "permissions": ["storage"],
   "host_permissions": [
     "https://leaklock-api-799658247857.us-central1.run.app/*"

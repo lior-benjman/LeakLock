@@ -1,0 +1,213 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>LeakLock Support</title>
+  <meta name="description" content="Support information for the LeakLock Chrome extension.">
+  <link rel="icon" href="assets/icon128.png">
+  <style>
+    :root {
+      color-scheme: light;
+      --ink: #0f172a;
+      --muted: #64748b;
+      --line: #dbe3ee;
+      --page: #f8fafc;
+      --blue: #2563eb;
+      --green: #16a34a;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      background: var(--page);
+      color: var(--ink);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      letter-spacing: 0;
+    }
+
+    a { color: var(--blue); }
+
+    .topbar {
+      border-bottom: 1px solid var(--line);
+      background: #ffffff;
+    }
+
+    .nav,
+    main,
+    footer {
+      width: min(860px, calc(100vw - 40px));
+      margin: 0 auto;
+    }
+
+    .nav {
+      min-height: 68px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 20px;
+    }
+
+    .brand {
+      display: inline-flex;
+      align-items: center;
+      gap: 12px;
+      color: var(--ink);
+      font-weight: 800;
+      text-decoration: none;
+    }
+
+    .brand img {
+      width: 34px;
+      height: 34px;
+      border-radius: 8px;
+    }
+
+    .nav-links {
+      display: flex;
+      gap: 16px;
+      font-size: 14px;
+      font-weight: 650;
+    }
+
+    .nav-links a {
+      color: var(--muted);
+      text-decoration: none;
+    }
+
+    main {
+      padding: 54px 0 68px;
+    }
+
+    h1 {
+      margin: 0 0 14px;
+      font-size: 44px;
+      line-height: 1.05;
+      letter-spacing: 0;
+    }
+
+    .lead {
+      margin: 0 0 32px;
+      color: var(--muted);
+      font-size: 19px;
+      line-height: 1.55;
+    }
+
+    .panel {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #ffffff;
+      padding: 24px;
+      margin-bottom: 16px;
+    }
+
+    h2 {
+      margin: 0 0 10px;
+      font-size: 22px;
+      letter-spacing: 0;
+    }
+
+    p,
+    li {
+      color: #334155;
+      font-size: 16px;
+      line-height: 1.7;
+    }
+
+    ul {
+      margin: 12px 0 0;
+      padding-left: 22px;
+    }
+
+    .status {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      margin-top: 8px;
+      color: #166534;
+      font-weight: 800;
+    }
+
+    .dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: var(--green);
+    }
+
+    footer {
+      border-top: 1px solid var(--line);
+      padding: 26px 0;
+      color: var(--muted);
+      font-size: 14px;
+    }
+
+    @media (max-width: 640px) {
+      .nav {
+        align-items: flex-start;
+        flex-direction: column;
+        justify-content: center;
+        padding: 14px 0;
+      }
+
+      .nav-links {
+        flex-wrap: wrap;
+      }
+
+      h1 {
+        font-size: 36px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <nav class="nav" aria-label="Primary navigation">
+      <a class="brand" href="./">
+        <img src="assets/icon128.png" alt="">
+        <span>LeakLock</span>
+      </a>
+      <div class="nav-links">
+        <a href="./">Home</a>
+        <a href="privacy.html">Privacy</a>
+        <a href="https://github.com/lior-benjman/LeakLock">GitHub</a>
+      </div>
+    </nav>
+  </header>
+
+  <main>
+    <h1>Support</h1>
+    <p class="lead">Help and troubleshooting for the LeakLock Chrome extension.</p>
+
+    <section class="panel">
+      <h2>Report a problem</h2>
+      <p>
+        Open an issue at <a href="https://github.com/lior-benjman/LeakLock/issues">github.com/lior-benjman/LeakLock/issues</a>. Include the website where the upload was tested, the image type, and what you expected LeakLock to detect.
+      </p>
+    </section>
+
+    <section class="panel">
+      <h2>Before reporting</h2>
+      <ul>
+        <li>Open the LeakLock popup and confirm Protection is on.</li>
+        <li>Refresh the website after installing or updating the extension.</li>
+        <li>Use an ordinary HTTP or HTTPS page with a standard image file input.</li>
+        <li>Check whether the selected image is larger or unusually slow to analyze.</li>
+      </ul>
+    </section>
+
+    <section class="panel">
+      <h2>Service status</h2>
+      <p>
+        LeakLock uses a cloud analysis API for extension scans.
+      </p>
+      <p class="status"><span class="dot"></span><a href="https://leaklock-api-799658247857.us-central1.run.app/health">API health endpoint</a></p>
+    </section>
+  </main>
+
+  <footer>
+    LeakLock support
+  </footer>
+</body>
+</html>

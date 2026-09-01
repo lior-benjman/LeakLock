@@ -46,7 +46,7 @@ Single purpose:
 LeakLock helps users review image files they select for upload by scanning them for sensitive visual content before allowing the upload to continue.
 
 Detailed description:
-LeakLock monitors image file selections on ordinary web pages when protection is enabled. Before an image upload continues, LeakLock sends the selected image to the LeakLock analysis API, checks for sensitive content such as faces, identity documents, documents, and license plates, and shows a risk result. Users can cancel the upload, continue, or blur flagged regions before continuing.
+LeakLock protects the current tab after the user opens the extension popup and turns protection on. Before an image upload continues in that tab, LeakLock sends the selected image to the LeakLock analysis API, checks for sensitive content such as faces, identity documents, documents, and license plates, and shows a risk result. Users can cancel the upload, continue, or blur flagged regions before continuing.
 
 Homepage URL:
 `https://lior-benjman.github.io/LeakLock/`
@@ -56,14 +56,14 @@ Support URL:
 
 ## Permission Justifications
 
-`storage`:
-Stores whether LeakLock protection is enabled or disabled. Protection is off by default.
+`activeTab`:
+Gives LeakLock temporary access to only the current tab after the user opens the extension popup. LeakLock uses this access to protect uploads on that tab without requesting broad access to every website.
+
+`scripting`:
+Injects LeakLock's content script into the current tab only after the user turns protection on from the popup.
 
 Host access for `https://leaklock-api-799658247857.us-central1.run.app/*`:
 Sends selected image files to the LeakLock analysis API and receives risk results.
-
-Content scripts on `http://*/*` and `https://*/*`:
-Detects image file selections on upload forms so LeakLock can scan the selected image before the page processes the upload.
 
 ## Privacy Tab Draft
 
@@ -72,7 +72,7 @@ Privacy policy URL:
 
 Data collected:
 - User-generated content: image files selected by the user for upload.
-- Website content: only file input interactions needed to detect selected uploads. The extension does not send page URLs, browsing history, cookies, or form text to the API.
+- Website content: only file input interactions in a user-enabled tab needed to detect selected uploads. The extension does not send page URLs, browsing history, cookies, or form text to the API.
 
 Data use:
 - Images are used only to provide LeakLock's image-risk analysis and optional local redaction preview workflow.
@@ -84,8 +84,8 @@ No. The extension calls a remote API for analysis results, but it does not load 
 ## Test Instructions Draft
 
 1. Install the extension from the submitted package.
-2. Open the extension popup and enable Protection.
-3. Visit any standard HTTP/HTTPS page with an image file input.
+2. Visit any standard HTTP/HTTPS page with an image file input.
+3. Open the extension popup and enable Protection for that tab.
 4. Select an image containing a visible face or license plate.
 5. Confirm that the LeakLock overlay appears before upload completion.
 6. Confirm the overlay displays risk score, detections, confidence, and available actions.
@@ -94,7 +94,7 @@ No. The extension calls a remote API for analysis results, but it does not load 
 ## Before Submit
 
 - Create or choose a Chrome Web Store developer account.
-- Publish a public privacy policy URL based on `docs/privacy-policy-draft.md`.
+- Publish the public privacy policy URL at `https://lior-benjman.github.io/LeakLock/privacy.html`.
 - Prepare at least one 1280x800 or 640x400 screenshot for the store listing.
 - Upload the store-ready zip in Chrome Developer Dashboard.
 - Fill Store Listing, Privacy, Distribution, and Test Instructions tabs.

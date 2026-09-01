@@ -1,11 +1,4 @@
 'use strict';
 
-// LeakLock service worker — initialises default storage state on install.
-
-chrome.runtime.onInstalled.addListener(() => {
-  chrome.storage.local.get(['leaklockEnabled'], (data) => {
-    if (data.leaklockEnabled === undefined) {
-      chrome.storage.local.set({ leaklockEnabled: false });
-    }
-  });
-});
+// No service worker is currently registered. LeakLock uses activeTab injection
+// from the popup so it does not need persistent page access.

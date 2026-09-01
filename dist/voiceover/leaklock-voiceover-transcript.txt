@@ -1,0 +1,7 @@
+Every day, families share photos quickly. A simple image can include more than we notice: a child's face, school uniform, home address, identity document, medical paper, or license plate. For children and older adults, those details can make them easier to identify, contact, or target online.
+
+LeakLock adds a safety pause before posting. When someone selects an image to upload, LeakLock analyzes the file for sensitive visual content and shows a clear risk result before the upload continues.
+
+If something private is found, the user can cancel the upload, continue knowingly, or blur the risky area first. The goal is not to stop sharing; it is to help people catch accidental exposure before a photo becomes public.
+
+For parents, caregivers, and families, LeakLock turns one rushed click into a safer decision.

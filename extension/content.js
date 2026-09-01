@@ -6,7 +6,7 @@ if (globalThis.__LEAKLOCK_CONTENT_SCRIPT_LOADED__) {
 }
 globalThis.__LEAKLOCK_CONTENT_SCRIPT_LOADED__ = true;
 
-const API_URL = 'https://leaklock-api-799658247857.us-central1.run.app/analyze-image';
+const API_URL = 'http://127.0.0.1:8000/analyze-image';
 const OVERLAY_HOST_ID = 'leaklock-overlay-host';
 const MAX_BATCH_FILES = 10;
 const ANALYSIS_TIMEOUT_MS = 45000;

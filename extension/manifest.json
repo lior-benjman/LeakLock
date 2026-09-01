@@ -7,7 +7,7 @@
   "homepage_url": "https://lior-benjman.github.io/LeakLock/",
   "permissions": ["activeTab", "scripting"],
   "host_permissions": [
-    "https://leaklock-api-799658247857.us-central1.run.app/*"
+    "http://127.0.0.1:8000/*"
   ],
   "action": {
     "default_popup": "popup.html",
